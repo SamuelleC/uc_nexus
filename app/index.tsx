@@ -10,7 +10,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Get screen width for full-width cards
   const screenWidth = Dimensions.get('window').width;
@@ -69,10 +69,10 @@ export default function HomeScreen() {
 
   const resetTimer = () => {
     if (timerRef.current) {
-      clearInterval(timerRef.current);
+      clearInterval(timerRef.current as ReturnType<typeof setInterval>);
     }
-    
-    timerRef.current = setInterval(autoScrollToNext, 5000); // Auto-scroll every 3 seconds
+
+    timerRef.current = setInterval(autoScrollToNext, 5000); // Auto-scroll every 5 seconds
   };
 
   // Auto-scroll effect

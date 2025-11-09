@@ -1,10 +1,12 @@
 import Card from '@/components/card';
 import Header from '@/components/header';
+import { useRouter } from 'expo-router';
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SchedulesScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   
   const handleUtilityPress = (utility: string) => {
     console.log(`Opening ${utility}`);
@@ -34,7 +36,7 @@ export default function SchedulesScreen() {
               title="U Building"
               description="50 Rooms"
               icon="business"
-              onPress={() => handleUtilityPress('Room')}
+              onPress={() => router.push({ pathname: '/UBuilding', params: { building: 'U' } })}
             />
           </View>
           
@@ -43,7 +45,7 @@ export default function SchedulesScreen() {
               title="M Building"
               description="50 Rooms"
               icon="business"
-              onPress={() => handleUtilityPress('Room')}
+              onPress={() => router.push('/MBuilding')}
             />
           </View>
           
@@ -52,7 +54,7 @@ export default function SchedulesScreen() {
               title="S Building"
               description="50 Rooms"
               icon="business"
-              onPress={() => handleUtilityPress('Room')}
+              onPress={() => router.push('/SBuilding')}
             />
           </View>
           
@@ -61,7 +63,7 @@ export default function SchedulesScreen() {
               title="N Building"
               description="50 Rooms"
               icon="business"
-              onPress={() => handleUtilityPress('Room')}
+              onPress={() => router.push('/NBuilding')}
             />
           </View>
           
@@ -70,7 +72,7 @@ export default function SchedulesScreen() {
               title="F Building"
               description="50 Rooms"
               icon="business"
-              onPress={() => handleUtilityPress('Room')}
+              onPress={() => router.push('/FBuilding')}
             />
           </View>
           
