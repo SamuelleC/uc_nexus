@@ -20,7 +20,7 @@ export interface ClassRequest {
   classSize: number;
   department: string;
   schedule: {
-    day: string;
+    days: string[];
     startTime: string;
     endTime: string;
   };

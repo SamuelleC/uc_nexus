@@ -196,7 +196,7 @@ export default function HomeScreen() {
                 <Ionicons name="cube-outline" size={28} color="white" />
               </View>
               <View className="absolute bottom-4 left-4">
-                <Text className="text-white text-xl font-medium">Lost & Found</Text>
+                <Text className="text-white text-xl font-medium">Placeholder</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity 
@@ -204,10 +204,10 @@ export default function HomeScreen() {
               onPress={handleUtilitiesPress}
             >
               <View className="p-2 first-letter:absolute top-2 right-2 opacity-50">
-                <Ionicons name="restaurant-outline" size={28} color="white" />
+                <Ionicons name="calendar-clear-outline" size={28} color="white" />
               </View>
               <View className="absolute bottom-4 left-4">
-                <Text className="text-white text-xl font-medium">Canteen</Text>
+                <Text className="text-white text-xl font-medium">Placeholder</Text>
               </View>
             </TouchableOpacity>
           </View>

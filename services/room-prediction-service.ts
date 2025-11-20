@@ -39,9 +39,9 @@ class RoomPredictionService {
 
   private getAvailableRooms(request: ClassRequest): Room[] {
     return MOCK_ROOMS.filter(room => {
-      // Check if room is available at requested time
+      // Check if room is available on any of the requested days
       const isAvailable = room.availability.some(slot => 
-        slot.day.toLowerCase() === request.schedule.day.toLowerCase() &&
+        request.schedule.days.includes(slot.day.toLowerCase()) &&
         slot.isAvailable &&
         this.timeOverlaps(
           slot.startTime, slot.endTime,
@@ -125,7 +125,7 @@ class RoomPredictionService {
       }
     }
 
-    reasons.push(`Available during ${request.schedule.day} ${request.schedule.startTime}-${request.schedule.endTime}`);
+    reasons.push(`Available during ${request.schedule.days.join(', ')} ${request.schedule.startTime}-${request.schedule.endTime}`);
 
     return reasons;
   }
@@ -173,7 +173,7 @@ You are a university room scheduling AI. Analyze the following room booking requ
 REQUEST:
 - Class size: ${request.classSize} students
 - Department: ${request.department}
-- Schedule: ${request.schedule.day} ${request.schedule.startTime}-${request.schedule.endTime}
+- Schedule: ${request.schedule.days.join(', ')} ${request.schedule.startTime}-${request.schedule.endTime}
 - Required equipment: ${request.requiredEquipment?.join(', ') || 'None specified'}
 - Preferred room type: ${request.preferredRoomType || 'Any'}
 

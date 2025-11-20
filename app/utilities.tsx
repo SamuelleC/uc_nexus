@@ -37,18 +37,6 @@ export default function UtilitiesScreen() {
                 icon="cube"
                 onPress={() => handleUtilityPress('Lost & Found')}
             />
-            <Card
-                title="Canteen Menu for Today"
-                description="View today's menu and specials"
-                icon="restaurant"
-                onPress={() => handleUtilityPress('Canteen Menu')}
-            />
-            <Card
-                title="Wi-Fi Information"
-                description="Campus network details and troubleshooting"
-                icon="wifi"
-                onPress={() => handleUtilityPress('WiFi')}
-            />
         </View>
       </ScrollView>
     </View>

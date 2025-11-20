@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
@@ -23,7 +22,7 @@ export default function ManageScreen() {
     classSize: 0,
     department: '',
     schedule: {
-      day: '',
+      days: [],
       startTime: '',
       endTime: ''
     },
@@ -35,7 +34,7 @@ export default function ManageScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [explanation, setExplanation] = useState<string>('');
 
-  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const roomTypes = ['classroom', 'laboratory', 'lecture-hall', 'seminar-room', 'computer-lab'];
 
   const scrollToResults = () => {
@@ -62,7 +61,11 @@ export default function ManageScreen() {
       Alert.alert('Error', 'Please select a department');
       return;
     }
-    if (!formData.schedule.day || !formData.schedule.startTime || !formData.schedule.endTime) {
+    if (!formData.schedule.days || formData.schedule.days.length === 0) {
+      Alert.alert('Error', 'Please select at least one day');
+      return;
+    }
+    if (!formData.schedule.startTime || !formData.schedule.endTime) {
       Alert.alert('Error', 'Please complete the schedule information');
       return;
     }
@@ -105,127 +108,195 @@ export default function ManageScreen() {
     return '#EF4444'; // Red
   };
 
+  const hours = Array.from({ length: 12 }, (_, i) => {
+    const n = i + 1; // 1..12
+    return { value: String(n).padStart(2, '0'), label: String(n) };
+  });
+  const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+  const setStartTime = (h: string, m: string) => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: { ...prev.schedule, startTime: `${h}:${m}` }
+    }));
+  };
+
+  const setEndTime = (h: string, m: string) => {
+    setFormData(prev => ({
+      ...prev,
+      schedule: { ...prev.schedule, endTime: `${h}:${m}` }
+    }));
+  };
+
+  const ITEM_HEIGHT = 40; // px, used for snapping
+  const startHourScrollRef = useRef<ScrollView | null>(null);
+  const startMinuteScrollRef = useRef<ScrollView | null>(null);
+  const endHourScrollRef = useRef<ScrollView | null>(null);
+  const endMinuteScrollRef = useRef<ScrollView | null>(null);
+  const startAmScrollRef = useRef<ScrollView | null>(null);
+  const endAmScrollRef = useRef<ScrollView | null>(null);
+
+  const ampm = ['am', 'pm'];
+
+  const parseTimeToParts = (time?: string) => {
+    const [hh = '00', mm = '00'] = (time || '00:00').split(':');
+    const hourNum = parseInt(hh, 10) || 0;
+    const suffix = hourNum < 12 ? 'am' : 'pm';
+    let hour12Num = hourNum % 12;
+    if (hour12Num === 0) hour12Num = 12;
+    const hour12 = String(hour12Num).padStart(2, '0');
+    return { hour24: hh, minute: mm, hour12, suffix };
+  };
+
+  const hour12SuffixTo24 = (hour12: string, suffix: string) => {
+    const hn = parseInt(hour12, 10) || 0;
+    if (suffix === 'am') {
+      if (hn === 12) return '00';
+      return String(hn).padStart(2, '0');
+    } else {
+      if (hn === 12) return '12';
+      return String(hn + 12).padStart(2, '0');
+    }
+  };
+
+  const setStartFromParts = (hour12: string, suffix: string, minute: string) => {
+    const hour24 = hour12SuffixTo24(hour12, suffix);
+    setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, startTime: `${hour24}:${minute}` } }));
+  };
+
+  const setEndFromParts = (hour12: string, suffix: string, minute: string) => {
+    const hour24 = hour12SuffixTo24(hour12, suffix);
+    setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, endTime: `${hour24}:${minute}` } }));
+  };
+
+  const onStartHourMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(hours.length - 1, idx));
+    const h = hours[clamped];
+    const parts = parseTimeToParts(formData.schedule.startTime);
+    setStartFromParts(h.value, parts.suffix, parts.minute);
+    startHourScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const onStartMinuteMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(minutes.length - 1, idx));
+    const m = minutes[clamped];
+    const parts = parseTimeToParts(formData.schedule.startTime);
+    setStartFromParts(parts.hour12, parts.suffix, m);
+    startMinuteScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const onStartAmMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(ampm.length - 1, idx));
+    const suffix = ampm[clamped];
+    const parts = parseTimeToParts(formData.schedule.startTime);
+    setStartFromParts(parts.hour12, suffix, parts.minute);
+    startAmScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const onEndHourMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(hours.length - 1, idx));
+    const h = hours[clamped];
+    const parts = parseTimeToParts(formData.schedule.endTime);
+    setEndFromParts(h.value, parts.suffix, parts.minute);
+    endHourScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const onEndMinuteMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(minutes.length - 1, idx));
+    const m = minutes[clamped];
+    const parts = parseTimeToParts(formData.schedule.endTime);
+    setEndFromParts(parts.hour12, parts.suffix, m);
+    endMinuteScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const onEndAmMomentum = (e: any) => {
+    const y = e.nativeEvent.contentOffset.y || 0;
+    const idx = Math.round(y / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(ampm.length - 1, idx));
+    const suffix = ampm[clamped];
+    const parts = parseTimeToParts(formData.schedule.endTime);
+    setEndFromParts(parts.hour12, suffix, parts.minute);
+    endAmScrollRef.current?.scrollTo({ y: clamped * ITEM_HEIGHT, animated: true });
+  };
+
+  const startParts = parseTimeToParts(formData.schedule.startTime);
+  const endParts = parseTimeToParts(formData.schedule.endTime);
+
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-white">
       <Header 
         title="Management" 
         subtitle="Use our built-in AI to find a suitable room"
       />
-      
       <ScrollView 
         ref={scrollViewRef}
-        style={styles.scrollView} 
-        contentContainerStyle={styles.scrollViewContent}
+        className="flex-1"
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 50 }}
         showsVerticalScrollIndicator={true}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled={true}
       >
-        <View style={styles.formContainer}>
-          <Text style={styles.sectionTitle}>Class Information</Text>
-          
-          {/* Class Size */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Class Size (Number of Students) *</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Enter number of students"
-              value={formData.classSize.toString()}
-              onChangeText={(text) => setFormData(prev => ({
-                ...prev, 
-                classSize: parseInt(text) || 0
-              }))}
-              keyboardType="numeric"
-            />
-          </View>
-
-          {/* Department */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Department *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.department}
-                onValueChange={(value: string) => setFormData(prev => ({
-                  ...prev, 
-                  department: value
-                }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Department" value="" />
-                {DEPARTMENTS.map(dept => (
-                  <Picker.Item 
-                    key={dept} 
-                    label={dept.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
-                    value={dept} 
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          {/* Schedule */}
-          <Text style={styles.sectionTitle}>Schedule</Text>
-          
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Day *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={formData.schedule.day}
-                onValueChange={(value: string) => setFormData(prev => ({
-                  ...prev, 
-                  schedule: { ...prev.schedule, day: value }
-                }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Day" value="" />
-                {days.map(day => (
-                  <Picker.Item 
-                    key={day} 
-                    label={day.charAt(0).toUpperCase() + day.slice(1)} 
-                    value={day} 
-                  />
-                ))}
-              </Picker>
-            </View>
-          </View>
-
-          <View style={styles.timeRow}>
-            <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
-              <Text style={styles.label}>Start Time *</Text>
+        <View className="p-4">
+          <Text className="text-xl font-bold text-gray-800 mb-4">Class Information</Text>
+          <View className="flex-row gap-3 mb-4">
+            {/* Class Size */}
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-gray-700 mb-1">Class Size</Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="HH:MM"
-                value={formData.schedule.startTime}
+                className="border border-gray-300 rounded-lg px-2 h-14 text-base bg-gray-50"
+                placeholder="# students"
+                value={formData.classSize.toString()}
                 onChangeText={(text) => setFormData(prev => ({
                   ...prev, 
-                  schedule: { ...prev.schedule, startTime: text }
+                  classSize: parseInt(text) || 0
                 }))}
+                keyboardType="numeric"
               />
             </View>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>End Time *</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="HH:MM"
-                value={formData.schedule.endTime}
-                onChangeText={(text) => setFormData(prev => ({
-                  ...prev, 
-                  schedule: { ...prev.schedule, endTime: text }
-                }))}
-              />
+            {/* Department */}
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-gray-700 mb-1">Department</Text>
+              <View className="border border-gray-300 rounded-lg bg-gray-50">
+                <Picker 
+                  selectedValue={formData.department}
+                  onValueChange={(value: string) => setFormData(prev => ({
+                    ...prev, 
+                    department: value
+                  }))}
+                  style={{ height: 56 }}
+                >
+                  <Picker.Item label="Select Department" value="" />
+                  {DEPARTMENTS.map(dept => (
+                    <Picker.Item 
+                      key={dept} 
+                      label={dept.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+                      value={dept} 
+                    />
+                  ))}
+                </Picker>
+              </View>
             </View>
           </View>
-
-          {/* Optional: Preferred Room Type */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Preferred Room Type (Optional)</Text>
-            <View style={styles.pickerContainer}>
+          <View className="mb-4">
+            <Text className="text-base font-semibold text-gray-700 mb-1">Preferred Room Type (Optional)</Text>
+            <View className="border border-gray-300 rounded-lg bg-gray-50">
               <Picker
                 selectedValue={formData.preferredRoomType || ''}
                 onValueChange={(value: string) => setFormData(prev => ({
                   ...prev, 
                   preferredRoomType: (value as any) || undefined
                 }))}
-                style={styles.picker}
+                style={{ height: 56 }}
               >
                 <Picker.Item label="Any Room Type" value="" />
                 {roomTypes.map(type => (
@@ -238,77 +309,235 @@ export default function ManageScreen() {
               </Picker>
             </View>
           </View>
+          <Text className="text-xl font-bold text-gray-800 mb-4">Schedule</Text>
+          <View className="mb-4">
+            <Text className="text-base font-semibold text-gray-700 mb-2">Days of the Week</Text>
+            <View className="flex-row flex-wrap gap-2">
+              {days.map(day => (
+                <TouchableOpacity
+                  key={day}
+                  onPress={() => setFormData(prev => ({
+                    ...prev,
+                    schedule: {
+                      ...prev.schedule,
+                      days: prev.schedule.days.includes(day)
+                        ? prev.schedule.days.filter(d => d !== day)
+                        : [...prev.schedule.days, day]
+                    }
+                  }))}
+                  className={`px-3 py-3 rounded-lg border ${
+                    formData.schedule.days.includes(day)
+                      ? 'bg-green-950 border-green-950'
+                      : 'bg-gray-100 border-gray-300'
+                  }`}
+                >
+                  <Text className={`text-sm font-semibold ${
+                    formData.schedule.days.includes(day)
+                      ? 'text-white'
+                      : 'text-gray-700'
+                  }`}>
+                    {day.charAt(0).toUpperCase() + day.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
+          <View className="flex-row gap-3 mb-4">
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-gray-700 mb-1">Start Time</Text>
+              <View className="flex-row border border-gray-300 rounded-lg bg-gray-50 p-1 flex-1">
+                <ScrollView
+                  ref={(ref) => { startHourScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onStartHourMomentum}
+                >
+                  {hours.map(h => (
+                    <TouchableOpacity
+                      key={h.value}
+                      onPress={() => setStartFromParts(h.value, startParts.suffix, startParts.minute)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{h.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  ref={(ref) => { startMinuteScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onStartMinuteMomentum}
+                >
+                  {minutes.map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setStartFromParts(startParts.hour12, startParts.suffix, m)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{m}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  ref={(ref) => { startAmScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onStartAmMomentum}
+                >
+                  {ampm.map(a => (
+                    <TouchableOpacity
+                      key={a}
+                      onPress={() => setStartFromParts(startParts.hour12, a, startParts.minute)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{a}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-semibold text-gray-700 mb-1">End Time</Text>
+              <View className="flex-row border border-gray-300 rounded-lg bg-gray-50 p-1 flex-1">
+                <ScrollView
+                  ref={(ref) => { endHourScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onEndHourMomentum}
+                >
+                  {hours.map(h => (
+                    <TouchableOpacity
+                      key={h.value}
+                      onPress={() => setEndFromParts(h.value, endParts.suffix, endParts.minute)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{h.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  ref={(ref) => { endMinuteScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onEndMinuteMomentum}
+                >
+                  {minutes.map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setEndFromParts(endParts.hour12, endParts.suffix, m)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{m}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <ScrollView
+                  ref={(ref) => { endAmScrollRef.current = ref; }}
+                  style={{ height: ITEM_HEIGHT, flex: 1 }}
+                  showsVerticalScrollIndicator={false}
+                  snapToInterval={ITEM_HEIGHT}
+                  snapToAlignment="center"
+                  decelerationRate="fast"
+                  onMomentumScrollEnd={onEndAmMomentum}
+                >
+                  {ampm.map(a => (
+                    <TouchableOpacity
+                      key={a}
+                      onPress={() => setEndFromParts(endParts.hour12, a, endParts.minute)}
+                      style={{ height: ITEM_HEIGHT, justifyContent: 'center' }}
+                    >
+                      <Text className="text-center text-base">{a}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </View>
           <TouchableOpacity 
-            style={[styles.submitButton, isLoading && styles.submitButtonDisabled]} 
+            className={`mt-2 p-4 rounded-lg items-center ${isLoading ? 'bg-gray-400' : 'bg-green-950'}`}
             onPress={handleSubmit}
             disabled={isLoading}
           >
             {isLoading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text style={styles.submitButtonText}>Get AI Suggestions</Text>
+              <Text className="text-white text-base font-semibold">Get AI Suggestion</Text>
             )}
           </TouchableOpacity>
-
-          {/* Results */}
+          
           <View ref={resultsRef}>
             {explanation && (
-              <View style={styles.explanationContainer}>
-                <View style={styles.analysisHeader}>
-                  <Text style={styles.explanationTitle}>🤖 AI Analysis</Text>
+              <View className="mt-5 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                <View className="flex-row justify-between items-center mb-2">
+                  <Text className="text-base font-semibold text-blue-900">🤖 AI Analysis</Text>
                   <TouchableOpacity 
-                    style={styles.scrollToTopButton}
+                    className="bg-gray-500 px-2 py-1 rounded-lg"
                     onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
                   >
-                    <Text style={styles.scrollToTopText}>↑ Top</Text>
+                    <Text className="text-white text-xs font-semibold">↑ Top</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.explanationText}>{explanation}</Text>
+                <Text className="text-sm text-gray-800 leading-5">{explanation}</Text>
               </View>
             )}
 
             {suggestions.length > 0 && (
-              <View style={styles.suggestionsContainer}>
-                <View style={styles.suggestionHeaderRow}>
-                  <Text style={styles.sectionTitle}>📍 Recommended Rooms</Text>
+              <View className="mt-5">
+                <View className="flex-row justify-between items-center mb-3">
+                  <Text className="text-xl font-bold text-gray-800">📍 Recommended Rooms</Text>
                   <TouchableOpacity 
-                    style={styles.scrollToTopButton}
+                    className="bg-gray-500 px-2 py-1 rounded-lg"
                     onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
                   >
-                    <Text style={styles.scrollToTopText}>↑ Back to Form</Text>
+                    <Text className="text-white text-xs font-semibold">↑ Back to Form</Text>
                   </TouchableOpacity>
                 </View>
                 {suggestions.map((suggestion, index) => (
-                <View key={suggestion.room.id} style={styles.suggestionCard}>
-                  <View style={styles.suggestionHeader}>
-                    <Text style={styles.roomName}>{suggestion.room.name}</Text>
-                    <View style={[styles.scoreContainer, { backgroundColor: getScoreColor(suggestion.score) }]}>
-                      <Text style={styles.scoreText}>{suggestion.score}%</Text>
+                <View key={suggestion.room.id} className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
+                  <View className="flex-row justify-between items-center mb-2">
+                    <Text className="text-base font-bold text-gray-800 flex-1">{suggestion.room.name}</Text>
+                    <View className="px-2 py-1 rounded-lg" style={{ backgroundColor: getScoreColor(suggestion.score) }}>
+                      <Text className="text-white text-xs font-bold">{suggestion.score}%</Text>
                     </View>
                   </View>
                   
-                  <Text style={styles.roomDetails}>
+                  <Text className="text-sm text-gray-600 mb-3">
                     📍 {suggestion.room.location} • 👥 Capacity: {suggestion.room.capacity}
                   </Text>
                   
-                  <View style={styles.reasonsContainer}>
-                    <Text style={styles.reasonsTitle}>✅ Why this room:</Text>
+                  <View className="mb-3">
+                    <Text className="text-sm font-semibold text-green-600 mb-1">✅ Why this room:</Text>
                     {suggestion.reasons.map((reason, idx) => (
-                      <Text key={idx} style={styles.reasonText}>• {reason}</Text>
+                      <Text key={idx} className="text-xs text-gray-700 ml-1 mb-0.5">• {reason}</Text>
                     ))}
                   </View>
 
                   {suggestion.concerns && suggestion.concerns.length > 0 && (
-                    <View style={styles.concernsContainer}>
-                      <Text style={styles.concernsTitle}>⚠️ Considerations:</Text>
+                    <View className="mb-3">
+                      <Text className="text-sm font-semibold text-amber-600 mb-1">⚠️ Considerations:</Text>
                       {suggestion.concerns.map((concern, idx) => (
-                        <Text key={idx} style={styles.concernText}>• {concern}</Text>
+                        <Text key={idx} className="text-xs text-gray-700 ml-1 mb-0.5">• {concern}</Text>
                       ))}
                     </View>
                   )}
                   
-                  <Text style={styles.equipmentText}>
+                  <Text className="text-xs text-gray-600 italic">
                     🔧 Equipment: {suggestion.room.equipment.join(', ')}
                   </Text>
                 </View>
@@ -321,186 +550,3 @@ export default function ManageScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'white',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    flexGrow: 1,
-    paddingBottom: 50,
-  },
-  formContainer: {
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginTop: 20,
-    marginBottom: 15,
-  },
-  inputGroup: {
-    marginBottom: 15,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 5,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#F9FAFB',
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    backgroundColor: '#F9FAFB',
-  },
-  picker: {
-    height: 50,
-  },
-  timeRow: {
-    flexDirection: 'row',
-  },
-  submitButton: {
-    backgroundColor: '#3B82F6',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  explanationContainer: {
-    marginTop: 20,
-    padding: 15,
-    backgroundColor: '#EBF8FF',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
-  },
-  explanationTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E40AF',
-    marginBottom: 5,
-  },
-  explanationText: {
-    fontSize: 14,
-    color: '#1F2937',
-    lineHeight: 20,
-  },
-  suggestionsContainer: {
-    marginTop: 20,
-  },
-  suggestionCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 15,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  suggestionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  roomName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    flex: 1,
-  },
-  scoreContainer: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  scoreText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  roomDetails: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 10,
-  },
-  reasonsContainer: {
-    marginBottom: 10,
-  },
-  reasonsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#059669',
-    marginBottom: 5,
-  },
-  reasonText: {
-    fontSize: 13,
-    color: '#374151',
-    marginLeft: 5,
-    marginBottom: 2,
-  },
-  concernsContainer: {
-    marginBottom: 10,
-  },
-  concernsTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#D97706',
-    marginBottom: 5,
-  },
-  concernText: {
-    fontSize: 13,
-    color: '#374151',
-    marginLeft: 5,
-    marginBottom: 2,
-  },
-  equipmentText: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontStyle: 'italic',
-  },
-  analysisHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  suggestionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  scrollToTopButton: {
-    backgroundColor: '#6B7280',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  scrollToTopText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-});
