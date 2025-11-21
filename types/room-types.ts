@@ -1,12 +1,17 @@
 export interface Room {
-  id: string;
-  name: string;
-  capacity: number;
-  location: string;
-  equipment: string[];
-  department: string[];
-  availability: TimeSlot[];
-  type: 'classroom' | 'laboratory' | 'lecture-hall' | 'seminar-room' | 'computer-lab';
+  id: string; 
+  name: string; 
+  capacity: number; 
+  location: string; 
+  equipment?: string[];
+  department?: string[];
+  availability: TimeSlot[]; 
+  type: 'classroom' | 'lecture-hall' | 'seminar-room' | 'computer-lab' | 'drafting-room'
+        | 'hydro/fluid-mech-lab' | 'matti/soil-test-lab' | 'physics-lab' | 'chemistry-lab' | 'biology-lab'
+        | 'gs/jhs-lab' | 'he-lab' | 'con-med-lab' | 'electronic/digital-lab' | 'demo-room' 
+        | 'nursing-lab' | 'culinary-lab' | 'Cafeteria' | 'cisco-lab' | 'thesis-room'
+        | 'engineering-computer-lab' | 'nutrition-lab' | 'psychology-lab' | 'masscom-lab' | 'firing-range'
+        | 'dancing-hall' | 'mascom-lab' | 'animation-lab' ;
 }
 
 export interface TimeSlot {
