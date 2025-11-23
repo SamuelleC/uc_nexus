@@ -1,6 +1,7 @@
 export interface Room {
   id: string; 
-  name: string; 
+  name: string;
+  description?: string;
   capacity: number; 
   location: string; 
   equipment?: string[];
@@ -11,7 +12,7 @@ export interface Room {
         | 'gs/jhs-lab' | 'he-lab' | 'con-med-lab' | 'electronic/digital-lab' | 'demo-room' 
         | 'nursing-lab' | 'culinary-lab' | 'Cafeteria' | 'cisco-lab' | 'thesis-room'
         | 'engineering-computer-lab' | 'nutrition-lab' | 'psychology-lab' | 'masscom-lab' | 'firing-range'
-        | 'dancing-hall' | 'mascom-lab' | 'animation-lab' ;
+        | 'dancing-hall' | 'mascom-lab' | 'animation-lab' | 'cea-computer-lab';
 }
 
 export interface TimeSlot {

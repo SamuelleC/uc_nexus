@@ -113,56 +113,9 @@ export default function HomeScreen() {
                 />
             </View>
           </View>
-
-          {/* Events Section */}
-          <View className="mb-4 -mx-6">
-            <ScrollView 
-              ref={scrollViewRef}
-              horizontal 
-              showsHorizontalScrollIndicator={false} 
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-              pagingEnabled={true}
-              decelerationRate="fast"
-              snapToInterval={screenWidth}
-              snapToAlignment="start"
-            >
-              {eventCards.map((card, index) => (
-                <View 
-                  key={card.id}
-                  style={{ width: screenWidth }}
-                  className="px-6"
-                >
-                  <TouchableOpacity 
-                    className="bg-white rounded-2xl p-6 mb-2 shadow-lg"
-                    style={{ height: 200 }}
-                  >
-                    <View className="items-center justify-center flex-1">
-                      <Ionicons name={card.icon} size={50} color="#0c3112" />
-                      <Text className="text-lg font-bold text-green-950 mt-3">{card.title}</Text>
-                      <Text className="text-gray-600 text-center mt-1 text-sm">
-                        {card.description}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Pagination Dots */}
-          <View className="flex-row justify-center items-center mb-6">
-            {eventCards.map((_, index) => (
-              <View
-                key={index}
-                className={`w-2 h-2 rounded-full mx-1 ${
-                  index === currentEventIndex ? 'bg-green-950' : 'bg-white border border-gray-300'
-                }`}
-              />
-            ))}
-          </View>
-
           {/* Navigation Buttons */}
+          <Text className='mb-4 text-xl font-medium text-zinc-500'>Building Traffic Analytics</Text>
+          <Text className='mb-4 text-xl font-medium text-zinc-500'>To be followed</Text>
           <Text className='mb-4 text-xl font-medium text-zinc-500'>Quick Actions</Text>
           <TouchableOpacity 
             className="bg-green-950 rounded-2xl p-8 mb-6 shadow-lg h-24"
@@ -196,7 +149,7 @@ export default function HomeScreen() {
                 <Ionicons name="cube-outline" size={28} color="white" />
               </View>
               <View className="absolute bottom-4 left-4">
-                <Text className="text-white text-xl font-medium">Placeholder</Text>
+                <Text className="text-white text-xl font-medium">Utilized   Rooms</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity 
@@ -207,7 +160,7 @@ export default function HomeScreen() {
                 <Ionicons name="calendar-clear-outline" size={28} color="white" />
               </View>
               <View className="absolute bottom-4 left-4">
-                <Text className="text-white text-xl font-medium">Placeholder</Text>
+                <Text className="text-white text-xl font-medium">Unutilized Rooms</Text>
               </View>
             </TouchableOpacity>
           </View>

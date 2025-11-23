@@ -17,68 +17,58 @@ export interface BuildingInfo {
   id: string;
   name: string;
   fullName: string;
-  description: string;
   totalRooms: number;
   floors: number;
-  roomsPerFloor: number;
-  specialFeatures?: string[];
   color: string;
 }
 
 export const BUILDINGS: Record<string, BuildingInfo> = {
   'U': {
     id: 'U',
-    name: 'U Building',
-    fullName: 'University Main Building',
-    description: 'The main academic building housing classrooms and administrative offices',
-    totalRooms: 100,
-    floors: 10,
-    roomsPerFloor: 10,
-    specialFeatures: ['Library on 3rd floor', 'Computer labs on 5th floor', 'Administrative offices on 10th floor'],
+    name: 'BRS Building (U Building)',
+    fullName: 'BRS Building',
+    totalRooms: 42,
+    floors: 9,
     color: '#3B82F6' // Blue
   },
   'M': {
     id: 'M',
-    name: 'M Building',
-    fullName: 'Mathematics & Engineering Building',
-    description: 'Dedicated to mathematics, engineering, and technical courses',
-    totalRooms: 80,
-    floors: 8,
-    roomsPerFloor: 10,
-    specialFeatures: ['Engineering labs', 'CAD workstations', 'Research facilities'],
+    name: 'Main Building (M Building)',
+    fullName: 'Main Building',
+    totalRooms: 13,
+    floors: 2,
     color: '#10B981' // Green
   },
   'S': {
     id: 'S',
-    name: 'S Building',
-    fullName: 'Science Laboratory Building',
-    description: 'Science laboratories and research facilities',
-    totalRooms: 60,
-    floors: 6,
-    roomsPerFloor: 10,
-    specialFeatures: ['Chemistry labs', 'Physics labs', 'Biology labs', 'Research centers'],
+    name: 'Science Building (S Building)',
+    fullName: 'Science Building',
+    totalRooms: 69,
+    floors: 7,
     color: '#8B5CF6' // Purple
   },
   'N': {
     id: 'N',
-    name: 'N Building',
-    fullName: 'Nursing & Health Sciences Building',
-    description: 'Health sciences programs and medical simulation labs',
-    totalRooms: 50,
+    name: 'EDS Building (N Building)',
+    fullName: 'EDS Building',
+    totalRooms: 35,
     floors: 5,
-    roomsPerFloor: 10,
-    specialFeatures: ['Medical simulation labs', 'Nursing practice rooms', 'Health clinics'],
     color: '#F59E0B' // Amber
   },
   'F': {
     id: 'F',
-    name: 'F Building',
-    fullName: 'Fine Arts & Humanities Building',
-    description: 'Arts, music, literature, and cultural studies',
-    totalRooms: 40,
+    name: 'CHTM Building (F Building)',
+    fullName: 'CHTM Building',
+    totalRooms: 27,
+    floors: 7,
+    color: '#EC4899' // Pink
+  },
+  'G': {
+    id: 'G',
+    name: 'PE Building (G Building)',
+    fullName: 'PE Building',
+    totalRooms: 10,
     floors: 4,
-    roomsPerFloor: 10,
-    specialFeatures: ['Music studios', 'Art galleries', 'Performance halls', 'Media labs'],
     color: '#EC4899' // Pink
   }
 };
@@ -89,10 +79,11 @@ export function generateFloorsForBuilding(buildingId: string): Floor[] {
 
   const floors: Floor[] = [];
   let nextRoomId = 1;
+  const roomsPerFloor = Math.ceil(buildingInfo.totalRooms / buildingInfo.floors);
 
   for (let f = 1; f <= buildingInfo.floors; f++) {
     const rooms: Room[] = [];
-    for (let r = 1; r <= buildingInfo.roomsPerFloor; r++) {
+    for (let r = 1; r <= roomsPerFloor; r++) {
       const roomNumber = `${f}${String(r).padStart(2, '0')}`; // e.g. 101, 102 ...
       
       // Generate different room types based on building

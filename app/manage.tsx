@@ -10,7 +10,6 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { DEPARTMENTS } from '../data/room-data';
 import { roomPredictionService } from '../services/room-prediction-service';
 import { AIResponse, ClassRequest, RoomSuggestion } from '../types/room-types';
 
@@ -35,7 +34,28 @@ export default function ManageScreen() {
   const [explanation, setExplanation] = useState<string>('');
 
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const roomTypes = ['classroom', 'laboratory', 'lecture-hall', 'seminar-room', 'computer-lab'];
+  const roomTypes = [
+    'animation-lab', 'biology-lab', 'Cafeteria', 'cea-computer-lab', 'chemistry-lab',
+    'cisco-lab', 'classroom', 'computer-lab', 'con-med-lab', 'culinary-lab',
+    'dancing-hall', 'demo-room', 'drafting-room', 'electronic/digital-lab', 'engineering-computer-lab',
+    'firing-range', 'gs/jhs-lab', 'he-lab', 'hydro/fluid-mech-lab', 'lecture-hall',
+    'mascom-lab', 'masscom-lab', 'matti/soil-test-lab', 'nursing-lab', 'nutrition-lab',
+    'physics-lab', 'psychology-lab', 'seminar-room', 'thesis-room'
+  ];
+  const departments = [
+    'computer-science',
+    'engineering',
+    'business',
+    'chemistry',
+    'biology',
+    'physics',
+    'mathematics',
+    'liberal-arts',
+    'management',
+    'economics',
+    'architecture',
+    'information-technology'
+  ];
 
   const scrollToResults = () => {
     if (resultsRef.current && scrollViewRef.current) {
@@ -276,10 +296,10 @@ export default function ManageScreen() {
                   style={{ height: 56 }}
                 >
                   <Picker.Item label="Select Department" value="" />
-                  {DEPARTMENTS.map(dept => (
+                  {departments.map((dept: string) => (
                     <Picker.Item 
                       key={dept} 
-                      label={dept.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} 
+                      label={dept.replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())} 
                       value={dept} 
                     />
                   ))}
@@ -288,7 +308,7 @@ export default function ManageScreen() {
             </View>
           </View>
           <View className="mb-4">
-            <Text className="text-base font-semibold text-gray-700 mb-1">Preferred Room Type (Optional)</Text>
+            <Text className="text-base font-semibold text-gray-700 mb-1">Preferred Room Type</Text>
             <View className="border border-gray-300 rounded-lg bg-gray-50">
               <Picker
                 selectedValue={formData.preferredRoomType || ''}
@@ -508,40 +528,26 @@ export default function ManageScreen() {
                     <Text className="text-white text-xs font-semibold">↑ Back to Form</Text>
                   </TouchableOpacity>
                 </View>
-                {suggestions.map((suggestion, index) => (
-                <View key={suggestion.room.id} className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
+                {suggestions.map((suggestion, index) => {
+                  if (!suggestion || !suggestion.room) return null;
+                  
+                  const roomNumber = suggestion.room.id?.replace('room-', '') || 'Unknown';
+                  const building = suggestion.room.location?.split(',')[0] || 'Unknown Building';
+                  return (
+                <View key={suggestion.room.id || index} className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
                   <View className="flex-row justify-between items-center mb-2">
-                    <Text className="text-base font-bold text-gray-800 flex-1">{suggestion.room.name}</Text>
-                    <View className="px-2 py-1 rounded-lg" style={{ backgroundColor: getScoreColor(suggestion.score) }}>
-                      <Text className="text-white text-xs font-bold">{suggestion.score}%</Text>
+                    <Text className="text-base font-bold text-gray-800 flex-1">{roomNumber} - {building}</Text>
+                    <View className="px-2 py-1 rounded-lg" style={{ backgroundColor: getScoreColor(suggestion.score || 0) }}>
+                      <Text className="text-white text-xs font-bold">{suggestion.score || 0}%</Text>
                     </View>
                   </View>
                   
                   <Text className="text-sm text-gray-600 mb-3">
-                    📍 {suggestion.room.location} • 👥 Capacity: {suggestion.room.capacity}
-                  </Text>
-                  
-                  <View className="mb-3">
-                    <Text className="text-sm font-semibold text-green-600 mb-1">✅ Why this room:</Text>
-                    {suggestion.reasons.map((reason, idx) => (
-                      <Text key={idx} className="text-xs text-gray-700 ml-1 mb-0.5">• {reason}</Text>
-                    ))}
-                  </View>
-
-                  {suggestion.concerns && suggestion.concerns.length > 0 && (
-                    <View className="mb-3">
-                      <Text className="text-sm font-semibold text-amber-600 mb-1">⚠️ Considerations:</Text>
-                      {suggestion.concerns.map((concern, idx) => (
-                        <Text key={idx} className="text-xs text-gray-700 ml-1 mb-0.5">• {concern}</Text>
-                      ))}
-                    </View>
-                  )}
-                  
-                  <Text className="text-xs text-gray-600 italic">
-                    🔧 Equipment: {suggestion.room.equipment.join(', ')}
+                    Type: {suggestion.room.name || 'Unknown'} • 📍 {suggestion.room.location || 'Unknown Location'} • 👥 Capacity: {suggestion.room.capacity || 0}
                   </Text>
                 </View>
-              ))}
+              );
+                }).filter(Boolean)}
               </View>
             )}
           </View>

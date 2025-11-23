@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { MOCK_ROOMS } from '../data/room-data';
+import { ROOMS } from '../data/room-data';
 import { AIResponse, ClassRequest, Room, RoomSuggestion } from '../types/room-types';
 
 // You'll need to get a free API key from https://ai.google.dev/
@@ -38,7 +38,7 @@ class RoomPredictionService {
   }
 
   private getAvailableRooms(request: ClassRequest): Room[] {
-    return MOCK_ROOMS.filter(room => {
+    return ROOMS.filter(room => {
       // Check if room is available on any of the requested days
       const isAvailable = room.availability.some(slot => 
         request.schedule.days.includes(slot.day.toLowerCase()) &&
@@ -49,7 +49,7 @@ class RoomPredictionService {
         )
       );
 
-      // Check if room has sufficient capacity (with some buffer)
+      // Check if room has sufficient capacity
       const hasCapacity = room.capacity >= request.classSize;
 
       return isAvailable && hasCapacity;
@@ -62,6 +62,7 @@ class RoomPredictionService {
     const requestStartMinutes = this.timeToMinutes(requestStart);
     const requestEndMinutes = this.timeToMinutes(requestEnd);
 
+    // Check if the requested time overlaps with or exactly matches the slot time
     return requestStartMinutes >= slotStartMinutes && requestEndMinutes <= slotEndMinutes;
   }
 
@@ -74,7 +75,7 @@ class RoomPredictionService {
     let score = 50; // Base score
 
     // Department match
-    if (room.department.includes(request.department)) {
+    if (room.department?.includes(request.department)) {
       score += 30;
     }
 
@@ -91,7 +92,7 @@ class RoomPredictionService {
     // Equipment match
     if (request.requiredEquipment) {
       const equipmentMatches = request.requiredEquipment.filter(eq => 
-        room.equipment.includes(eq)
+        room.equipment?.includes(eq)
       ).length;
       score += (equipmentMatches / request.requiredEquipment.length) * 15;
     }
@@ -107,7 +108,7 @@ class RoomPredictionService {
   private getBasicReasons(room: Room, request: ClassRequest): string[] {
     const reasons: string[] = [];
 
-    if (room.department.includes(request.department)) {
+    if (room.department?.includes(request.department)) {
       reasons.push(`Matches ${request.department} department`);
     }
 
@@ -119,7 +120,7 @@ class RoomPredictionService {
     }
 
     if (request.requiredEquipment) {
-      const hasEquipment = request.requiredEquipment.some(eq => room.equipment.includes(eq));
+      const hasEquipment = request.requiredEquipment.some(eq => room.equipment?.includes(eq));
       if (hasEquipment) {
         reasons.push('Has required equipment');
       }
@@ -138,13 +139,13 @@ class RoomPredictionService {
       concerns.push('Room might be oversized for class');
     }
 
-    if (!room.department.includes(request.department)) {
+    if (!room.department?.includes(request.department)) {
       concerns.push('Not in preferred department building');
     }
 
     if (request.requiredEquipment) {
       const missingEquipment = request.requiredEquipment.filter(eq => 
-        !room.equipment.includes(eq)
+        !room.equipment?.includes(eq)
       );
       if (missingEquipment.length > 0) {
         concerns.push(`Missing equipment: ${missingEquipment.join(', ')}`);

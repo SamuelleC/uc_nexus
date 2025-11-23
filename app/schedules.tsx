@@ -49,7 +49,7 @@ export default function SchedulesScreen() {
             <View className="flex-row justify-between items-center">
               <Text className="text-gray-600 text-lg">Total Floors</Text>
               <Text className="text-lg font-semibold text-gray-800">
-                {Object.values(BUILDINGS).reduce((total, building) => total + building.floors, 0)}
+                {Math.max(...Object.values(BUILDINGS).map(building => building.floors))}
               </Text>
             </View>
           </View>
