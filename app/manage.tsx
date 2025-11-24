@@ -1,4 +1,6 @@
+import Card from '@/components/card';
 import Header from '@/components/header';
+import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import React, { useRef, useState } from 'react';
 import {
@@ -16,6 +18,19 @@ import { AIResponse, ClassRequest, RoomSuggestion } from '../types/room-types';
 export default function ManageScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
   const resultsRef = useRef<View>(null);
+  
+  // State to manage which view to show
+  const [currentView, setCurrentView] = useState<'main' | 'assignRooms' | 'aiHelper'>('main');
+  
+  // AI Helper form data
+  const [aiHelperData, setAiHelperData] = useState({
+    facultyName: '',
+    courseCode: '',
+    courseName: '',
+    prompt: ''
+  });
+  const [aiHelperResponse, setAiHelperResponse] = useState<string>('');
+  const [aiHelperLoading, setAiHelperLoading] = useState(false);
   
   const [formData, setFormData] = useState<ClassRequest>({
     classSize: 0,
@@ -120,6 +135,54 @@ export default function ManageScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // AI Helper form handlers
+  const handleAiHelperSubmit = async () => {
+    // Validation checks
+    if (!aiHelperData.facultyName) {
+      Alert.alert('Error', 'Please enter faculty name');
+      return;
+    }
+    if (!aiHelperData.courseCode) {
+      Alert.alert('Error', 'Please enter course code');
+      return;
+    }
+    if (!aiHelperData.courseName) {
+      Alert.alert('Error', 'Please enter course name');
+      return;
+    }
+    if (!aiHelperData.prompt) {
+      Alert.alert('Error', 'Please enter your request/question');
+      return;
+    }
+
+    setAiHelperLoading(true);
+    setAiHelperResponse('');
+    
+    try {
+      const response = await roomPredictionService.getAIHelperResponse(
+        aiHelperData.facultyName,
+        aiHelperData.courseCode,
+        aiHelperData.courseName,
+        aiHelperData.prompt
+      );
+      setAiHelperResponse(response);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to get AI response. Please try again.');
+    } finally {
+      setAiHelperLoading(false);
+    }
+  };
+
+  const resetAiHelperForm = () => {
+    setAiHelperData({
+      facultyName: '',
+      courseCode: '',
+      courseName: '',
+      prompt: ''
+    });
+    setAiHelperResponse('');
   };
 
   const getScoreColor = (score: number): string => {
@@ -252,12 +315,159 @@ export default function ManageScreen() {
   const startParts = parseTimeToParts(formData.schedule.startTime);
   const endParts = parseTimeToParts(formData.schedule.endTime);
 
+  // Main cards view
+  if (currentView === 'main') {
+    return (
+      <View className="flex-1 bg-gray-100">
+        <Header 
+          title="Management" 
+          subtitle="Choose how you want to manage your rooms"
+        />
+        <ScrollView 
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 16, paddingVertical: 20 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text className='mb-4 text-xl font-medium text-zinc-500'>Select a task</Text>
+          <View style={{ gap: 16 }}>
+            <Card
+              title="AI Helper"
+              description="Get intelligent suggestions based on your requirements"
+              icon="bulb"
+              onPress={() => setCurrentView('aiHelper')}
+            />
+            <Card
+              title="Assign Rooms"
+              description="Assign and manage rooms"
+              icon="calendar"
+              onPress={() => setCurrentView('assignRooms')}
+            />
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // AI Helper form view
+  if (currentView === 'aiHelper') {
+    return (
+      <View className="flex-1 bg-white">
+        <Header 
+          title="AI Helper" 
+          subtitle="Get intelligent assistance for course management"
+        />
+        {/* Back Button */}
+        <View className="px-4 pt-2">
+        <TouchableOpacity 
+          onPress={() => setCurrentView('main')}
+          className="flex-row items-center mb-2"
+        >
+          <Ionicons name="arrow-back" size={24} color="#0c3112" />
+        </TouchableOpacity>
+      </View>
+
+        <ScrollView className="flex-1 px-4">
+          {/* AI Helper Form */}
+          <View className="bg-white rounded-lg p-4 mb-4 shadow-sm border border-gray-200">
+            <Text className="text-lg font-semibold text-gray-800 mb-4">Course Information</Text>
+            
+            {/* Faculty Name */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-gray-700 mb-2">Faculty Name</Text>
+              <TextInput
+                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
+                placeholder="Enter faculty name"
+                value={aiHelperData.facultyName}
+                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, facultyName: text }))}
+              />
+            </View>
+
+            {/* Course Code */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-gray-700 mb-2">Course Code</Text>
+              <TextInput
+                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
+                placeholder="e.g., CS101, MATH201"
+                value={aiHelperData.courseCode}
+                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, courseCode: text }))}
+              />
+            </View>
+
+            {/* Course Name */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-gray-700 mb-2">Course Name</Text>
+              <TextInput
+                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
+                placeholder="Enter course name"
+                value={aiHelperData.courseName}
+                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, courseName: text }))}
+              />
+            </View>
+
+            {/* Custom Prompt */}
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-gray-700 mb-2">Your Question/Request</Text>
+              <TextInput
+                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800 h-24"
+                placeholder="What would you like help with? e.g., 'What are the best room types for this course?', 'Suggest optimal scheduling for this faculty', etc."
+                value={aiHelperData.prompt}
+                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, prompt: text }))}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Buttons */}
+            <View className="flex-row justify-between">
+              <TouchableOpacity
+                onPress={resetAiHelperForm}
+                className="flex-1 bg-gray-500 rounded-lg py-3 mr-2"
+              >
+                <Text className="text-white text-center font-semibold">Clear Form</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={handleAiHelperSubmit}
+                className="flex-1 bg-green-950 rounded-lg py-3 ml-2"
+                disabled={aiHelperLoading}
+              >
+                {aiHelperLoading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text className="text-white text-center font-semibold">Get AI Assistance</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* AI Response */}
+          {aiHelperResponse && (
+            <View className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
+              <Text className="text-lg font-semibold text-blue-800 mb-3">AI Assistant Response</Text>
+              <Text className="text-gray-800 text-sm leading-6">{aiHelperResponse}</Text>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
+  }
+
+  // Assign rooms form view
   return (
     <View className="flex-1 bg-white">
       <Header 
-        title="Management" 
+        title="Assign Rooms" 
         subtitle="Use our built-in AI to find a suitable room"
       />
+      {/* Back Button */}
+      <View className="px-4 pt-2">
+        <TouchableOpacity 
+          onPress={() => setCurrentView('main')}
+          className="flex-row items-center mb-2"
+        >
+          <Ionicons name="arrow-back" size={24} color="#0c3112" />
+        </TouchableOpacity>
+      </View>
       <ScrollView 
         ref={scrollViewRef}
         className="flex-1"

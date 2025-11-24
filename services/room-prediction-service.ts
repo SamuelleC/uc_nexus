@@ -240,6 +240,59 @@ Provide exactly 3 suggestions (or fewer if less than 3 rooms available), ranked 
       return this.fallbackRoomSuggestion(request);
     }
   }
+
+  async getAIHelperResponse(facultyName: string, courseCode: string, courseName: string, customPrompt: string): Promise<string> {
+    try {
+      // Check if API key is configured
+      if (API_KEY === 'YOUR_API_KEY_HERE') {
+        return 'AI service is not configured. Please set up your Google AI API key in the environment variables.';
+      }
+
+      const prompt = `
+You are a university course management and scheduling AI assistant. You have been asked to help with the following:
+
+Faculty Name: ${facultyName}
+Course Code: ${courseCode}
+Course Name: ${courseName}
+
+User's Request: ${customPrompt}
+
+Please provide helpful, practical advice or suggestions based on the information provided. Consider factors such as:
+- Course scheduling and room requirements
+- Faculty expertise and department alignment
+- Student needs and class management
+- Resource allocation and equipment needs
+- Best practices for course delivery
+
+Provide a clear, actionable response that addresses the user's specific request.
+`;
+
+      console.log('Sending request to AI service...');
+      const result = await this.model.generateContent(prompt);
+      const response = result.response;
+      console.log('AI service response received successfully');
+      return response.text();
+
+    } catch (error) {
+      console.error('AI Helper service error:', error);
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('API key')) {
+          return 'Invalid API key. Please check your Google AI API key configuration.';
+        }
+        if (error.message.includes('network') || error.message.includes('fetch')) {
+          return 'Network error: Please check your internet connection and try again.';
+        }
+        if (error.message.includes('quota') || error.message.includes('limit')) {
+          return 'API quota exceeded. Please try again later or check your Google AI usage limits.';
+        }
+        return `AI service error: ${error.message}. Please try again.`;
+      }
+      
+      return 'AI Helper service is currently unavailable. Please check your internet connection and try again later.';
+    }
+  }
 }
 
 export const roomPredictionService = new RoomPredictionService();

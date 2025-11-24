@@ -31,12 +31,6 @@ export default function UtilitiesScreen() {
                 icon="school"
                 onPress={() => handleUtilityPress('Your Class Schedule')}
             />
-            <Card
-                title="Lost & Found"
-                description="Find your lost items on the campus"
-                icon="cube"
-                onPress={() => handleUtilityPress('Lost & Found')}
-            />
         </View>
       </ScrollView>
     </View>

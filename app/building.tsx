@@ -1,4 +1,5 @@
 import Header from '@/components/header';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -189,14 +190,15 @@ export default function Building() {
       />
       <ScrollView className="flex-1">
         {/* Back Button */}
-        <View className="mx-4 mt-4 mb-2">
-          <TouchableOpacity
+        <View className="px-4 pt-2">
+          <TouchableOpacity 
             onPress={() => router.push('/schedules')}
-            className="flex-row items-center px-3 py-2 rounded-lg bg-white shadow-sm self-start"
+            className="flex-row items-center mb-2"
           >
-            <Text className="text-gray-700 font-medium">Back</Text>
+            <Ionicons name="arrow-back" size={24} color="#0c3112" />
           </TouchableOpacity>
         </View>
+       
         
         {/* Building Info Card */}
         <View className="m-4 mt-2">
