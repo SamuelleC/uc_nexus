@@ -1,11 +1,12 @@
 import Header from '@/components/header';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { AssignmentService, RoomAssignment } from '../data/assignments-data';
 import { BuildingInfo, BUILDINGS } from '../data/building-data';
 import { ROOMS } from '../data/room-data';
-import { Room } from '../types/room-types';
+import { Room, TimeSlot } from '../types/room-types';
 
 interface Floor {
   id: number;
@@ -20,6 +21,73 @@ export default function Building() {
   const [buildingInfo, setBuildingInfo] = useState<BuildingInfo | null>(null);
   const [selectedFloor, setSelectedFloor] = useState<number | null>(null);
   const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string>('monday');
+  const [assignments, setAssignments] = useState<RoomAssignment[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isMounted, setIsMounted] = useState(true);
+
+  // Load assignments function with mount check
+  const loadAssignments = async () => {
+    try {
+      const allAssignments = await AssignmentService.getAllAssignments();
+      if (isMounted) {
+        setAssignments(allAssignments);
+      }
+    } catch (error) {
+      console.error('Error loading assignments:', error);
+    }
+  };
+
+  // Pull to refresh handler with mount check
+  const onRefresh = async () => {
+    if (!isMounted) return;
+    setRefreshing(true);
+    try {
+      await loadAssignments();
+    } catch (error) {
+      console.error('Error refreshing assignments:', error);
+    } finally {
+      if (isMounted) {
+        setRefreshing(false);
+      }
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      setIsMounted(false);
+    };
+  }, []);
+
+  // Load assignments on component mount
+  useEffect(() => {
+    loadAssignments();
+  }, []);
+
+  // Reload assignments when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (isMounted) {
+        loadAssignments();
+      }
+    }, [isMounted])
+  );
+
+  // Helper function to get assignments for a specific room from state
+  const getAssignmentsForRoom = (roomId: string): RoomAssignment[] => {
+    try {
+      if (!roomId || !Array.isArray(assignments)) return [];
+      return assignments.filter(assignment => 
+        assignment && 
+        typeof assignment === 'object' && 
+        assignment.roomId === roomId
+      );
+    } catch (error) {
+      console.error('Error getting assignments for room:', error);
+      return [];
+    }
+  };
 
   // Function to get real rooms for a specific building
   const getRoomsForBuilding = (buildingId: string): Room[] => {
@@ -135,6 +203,12 @@ export default function Building() {
   };
 
   const getRoomStatusColor = (room: Room) => {
+    // Check if room has any assignments
+    const roomAssignments = getAssignmentsForRoom(room.id);
+    if (roomAssignments.length > 0) {
+      return 'bg-red-500'; // Occupied/Assigned
+    }
+    
     const availableSlots = getAvailableSlotsCount(room);
     if (availableSlots === 0) return 'bg-red-500';
     if (availableSlots <= 15) return 'bg-yellow-500';
@@ -142,8 +216,22 @@ export default function Building() {
   };
 
   const getRoomStatusText = (room: Room) => {
-    const availableSlots = getAvailableSlotsCount(room);
-    return `${availableSlots} Slots`;
+    // Always show slot count, regardless of assignments
+    const totalSlots = 54; // 9 time slots per day × 6 days = 54 total slots
+    const roomAssignments = getAssignmentsForRoom(room.id);
+    
+    // Count occupied slots properly - each assignment takes 1 slot per day it's scheduled
+    const occupiedSlots = roomAssignments.reduce((total, assignment) => {
+      return total + assignment.schedule.days.length; // Each day the assignment is scheduled = 1 occupied slot
+    }, 0);
+    
+    const availableSlots = totalSlots - occupiedSlots;
+    
+    if (roomAssignments.length > 0) {
+      return `${availableSlots}/54 Slots`;
+    }
+    
+    return `54 Slots`;
   };
 
   const getRoomTypeIcon = (type: string) => {
@@ -188,7 +276,17 @@ export default function Building() {
         title={buildingInfo.name} 
         subtitle={`${buildingInfo.totalRooms} rooms across ${buildingInfo.floors} floors`}
       />
-      <ScrollView className="flex-1">
+      <ScrollView 
+        className="flex-1"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#0c3112']}
+            tintColor='#0c3112'
+          />
+        }
+      >
         {/* Back Button */}
         <View className="px-4 pt-2">
           <TouchableOpacity 
@@ -284,7 +382,10 @@ export default function Building() {
                   <View key={room.id}>
                     <TouchableOpacity 
                       className="flex-row items-center px-4 py-3 border-b border-gray-100"
-                      onPress={() => setExpandedRoom(isExpanded ? null : room.id)}
+                      onPress={() => {
+                        // Always expand to show slots, regardless of assignment status
+                        setExpandedRoom(isExpanded ? null : room.id);
+                      }}
                     >
                       <View className="flex-1">
                         <Text className="text-gray-800 font-medium">{roomNumber}</Text>
@@ -321,9 +422,8 @@ export default function Building() {
                           Available Schedules:
                         </Text>
                         {(() => {
-                          const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-                          const todaySlots = getAvailableSlots(room);
                           const allSlots = getAllAvailableSlots(room);
+                          const roomAssignments = getAssignmentsForRoom(room.id);
                           
                           // Group slots by day
                           const slotsByDay = allSlots.reduce((acc, slot) => {
@@ -332,53 +432,171 @@ export default function Building() {
                             return acc;
                           }, {} as Record<string, typeof allSlots>);
                           
+                          // Add assignment slots to the display
+                          roomAssignments.forEach(assignment => {
+                            assignment.schedule.days.forEach(day => {
+                              if (!slotsByDay[day.toLowerCase()]) {
+                                slotsByDay[day.toLowerCase()] = [];
+                              }
+                              
+                              // Check if this assignment slot already exists
+                              const existingSlot = slotsByDay[day.toLowerCase()].find(slot => 
+                                slot.startTime === assignment.schedule.startTime && 
+                                slot.endTime === assignment.schedule.endTime
+                              );
+                              
+                              if (!existingSlot) {
+                                // Add assignment as a slot
+                                slotsByDay[day.toLowerCase()].push({
+                                  day: day.toLowerCase() as TimeSlot['day'],
+                                  startTime: assignment.schedule.startTime,
+                                  endTime: assignment.schedule.endTime,
+                                  isAvailable: false
+                                });
+                              }
+                            });
+                          });
+                          
+                          const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                          
+                          // Get slots for selected day and sort by time
+                          const selectedDaySlots = (slotsByDay[selectedDay] || []).sort((a, b) => {
+                            const timeA = a.startTime.split(':').map(Number);
+                            const timeB = b.startTime.split(':').map(Number);
+                            return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
+                          });
+                          
+                          // Check each slot for assignments
+                          const slotsWithAssignments = selectedDaySlots.map(slot => {
+                            // Find assignment that matches this slot
+                            const matchingAssignment = roomAssignments.find(assignment =>
+                              assignment.schedule.days.some(day => day.toLowerCase() === slot.day) &&
+                              assignment.schedule.startTime === slot.startTime &&
+                              assignment.schedule.endTime === slot.endTime
+                            );
+                            
+                            return {
+                              ...slot,
+                              assignment: matchingAssignment
+                            };
+                          });
+                          
                           return (
                             <View>
-                              {/* Today's slots first */}
-                              {todaySlots.length > 0 && (
-                                <View className="mb-3">
-                                  <Text className="font-medium text-green-700 mb-2 capitalize">
-                                    Today ({today}) - {todaySlots.length} slots
-                                  </Text>
-                                  <View className="space-y-1">
-                                    {todaySlots.slice(0, 3).map((slot, index) => (
-                                      <View key={index} className="flex-row justify-between items-center bg-green-50 p-2 rounded">
-                                        <Text className="text-gray-800">
-                                          {slot.startTime} - {slot.endTime}
+                              {/* Day Selection Buttons */}
+                              <View className="mb-4">
+                                <Text className="font-semibold text-gray-700 mb-2">Select Day:</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-2">
+                                  <View className="flex-row space-x-2">
+                                    {daysOfWeek.map((day) => (
+                                      <TouchableOpacity
+                                        key={day}
+                                        onPress={() => setSelectedDay(day)}
+                                        className={`px-3 py-2 rounded-full ${
+                                          selectedDay === day ? 'bg-blue-500' : 'bg-gray-200'
+                                        }`}
+                                      >
+                                        <Text className={`text-sm font-medium ${
+                                          selectedDay === day ? 'text-white' : 'text-gray-700'
+                                        }`}>
+                                          {day.charAt(0).toUpperCase() + day.slice(1)}
                                         </Text>
-                                        <View className="bg-green-100 px-2 py-1 rounded">
-                                          <Text className="text-green-700 text-xs font-medium">Available</Text>
-                                        </View>
-                                      </View>
+                                      </TouchableOpacity>
                                     ))}
-                                    {todaySlots.length > 3 && (
-                                      <Text className="text-gray-500 text-sm italic">
-                                        ... and {todaySlots.length - 3} more slots today
-                                      </Text>
-                                    )}
                                   </View>
-                                </View>
-                              )}
+                                </ScrollView>
+                              </View>
+
+                              {/* Time Slots Display */}
+                              <View>
+                                <Text className="font-medium text-gray-700 mb-3">
+                                  Time Slots - {selectedDay.charAt(0).toUpperCase() + selectedDay.slice(1)} 
+                                  ({slotsWithAssignments.length} slots)
+                                </Text>
+                                
+                                {slotsWithAssignments.length > 0 ? (
+                                  <ScrollView className="max-h-80" nestedScrollEnabled={true}>
+                                    <View className="space-y-2">
+                                      {slotsWithAssignments.map((slot, index) => {
+                                        const isOccupied = slot.assignment;
+                                        
+                                        return (
+                                          <View 
+                                            key={`${slot.day}-${slot.startTime}-${index}`} 
+                                            className={`flex-row justify-between items-center p-3 rounded-lg border ${
+                                              isOccupied 
+                                                ? 'bg-red-50 border-red-200' 
+                                                : 'bg-green-50 border-green-200'
+                                            }`}
+                                          >
+                                            <View className="flex-1">
+                                              <Text className="text-gray-800 font-medium">
+                                                {slot.startTime} - {slot.endTime}
+                                              </Text>
+                                              <Text className="text-gray-500 text-sm capitalize">
+                                                {slot.day}
+                                              </Text>
+                                              {isOccupied && slot.assignment && (
+                                                <View className="mt-1">
+                                                  <Text className="text-red-700 text-sm font-medium">
+                                                    {slot.assignment.department}
+                                                  </Text>
+                                                  <Text className="text-red-600 text-xs">
+                                                    {slot.assignment.className}
+                                                  </Text>
+                                                </View>
+                                              )}
+                                            </View>
+                                            <View className={`px-3 py-1 rounded-full ${
+                                              isOccupied 
+                                                ? 'bg-red-100' 
+                                                : 'bg-green-100'
+                                            }`}>
+                                              <Text className={`text-xs font-medium ${
+                                                isOccupied 
+                                                  ? 'text-red-700' 
+                                                  : 'text-green-700'
+                                              }`}>
+                                                {isOccupied ? 'Occupied' : 'Available'}
+                                              </Text>
+                                            </View>
+                                          </View>
+                                        );
+                                      })}
+                                    </View>
+                                  </ScrollView>
+                                ) : (
+                                  <View className="bg-red-50 p-4 rounded-lg border border-red-200">
+                                    <Text className="text-red-600 italic text-center">
+                                      No time slots for {selectedDay}
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
                               
-                              {/* Summary for all days */}
-                              <View className="mb-2">
+                              {/* Weekly Summary */}
+                              <View className="mt-4 pt-4 border-t border-gray-200">
                                 <Text className="font-medium text-gray-600 mb-2">
-                                  Weekly Summary: {allSlots.length} total slots available
+                                  Weekly Summary: {Object.values(slotsByDay).flat().length} total slots
                                 </Text>
                                 <View className="flex-row flex-wrap">
                                   {Object.entries(slotsByDay).map(([day, daySlots]) => (
-                                    <View key={day} className="mr-3 mb-1">
-                                      <Text className="text-xs text-gray-600 capitalize">
-                                        {day.substring(0, 3)}: {daySlots.length} slots
+                                    <TouchableOpacity 
+                                      key={day} 
+                                      onPress={() => setSelectedDay(day)}
+                                      className={`mr-2 mb-2 px-3 py-1 rounded-full ${
+                                        selectedDay === day ? 'bg-blue-100 border border-blue-300' : 'bg-gray-100'
+                                      }`}
+                                    >
+                                      <Text className={`text-xs font-medium capitalize ${
+                                        selectedDay === day ? 'text-blue-700' : 'text-gray-600'
+                                      }`}>
+                                        {day.substring(0, 3)}: {daySlots.length}
                                       </Text>
-                                    </View>
+                                    </TouchableOpacity>
                                   ))}
                                 </View>
                               </View>
-                              
-                              {allSlots.length === 0 && (
-                                <Text className="text-red-600 italic">No available time slots</Text>
-                              )}
                             </View>
                           );
                         })()}

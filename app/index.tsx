@@ -114,8 +114,6 @@ export default function HomeScreen() {
             </View>
           </View>
           {/* Navigation Buttons */}
-          <Text className='mb-4 text-xl font-medium text-zinc-500'>Building Traffic Analytics</Text>
-
           <Text className='mb-4 text-xl font-medium text-zinc-500'>Quick Actions</Text>
           <TouchableOpacity 
             className="bg-green-950 rounded-2xl p-8 mb-6 shadow-lg h-24"

@@ -8,7 +8,7 @@ import { BUILDINGS } from '../data/building-data';
 export default function SchedulesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  
+
   const handleBuildingPress = (buildingId: string) => {
     router.push({
       pathname: '/building',

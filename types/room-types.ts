@@ -23,6 +23,7 @@ export interface TimeSlot {
 }
 
 export interface ClassRequest {
+  className?: string; // Optional class name for assignments
   classSize: number;
   department: string;
   schedule: {

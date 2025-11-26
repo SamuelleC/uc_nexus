@@ -12,8 +12,10 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { AssignmentService } from '../data/assignments-data';
+import { ROOMS } from '../data/room-data';
 import { roomPredictionService } from '../services/room-prediction-service';
-import { AIResponse, ClassRequest, RoomSuggestion } from '../types/room-types';
+import { ClassRequest, RoomSuggestion } from '../types/room-types';
 
 export default function ManageScreen() {
   const scrollViewRef = useRef<ScrollView>(null);
@@ -33,6 +35,7 @@ export default function ManageScreen() {
   const [aiHelperLoading, setAiHelperLoading] = useState(false);
   
   const [formData, setFormData] = useState<ClassRequest>({
+    className: '',
     classSize: 0,
     department: '',
     schedule: {
@@ -58,18 +61,9 @@ export default function ManageScreen() {
     'physics-lab', 'psychology-lab', 'seminar-room', 'thesis-room'
   ];
   const departments = [
-    'computer-science',
-    'engineering',
-    'business',
-    'chemistry',
-    'biology',
-    'physics',
-    'mathematics',
-    'liberal-arts',
-    'management',
-    'economics',
-    'architecture',
-    'information-technology'
+    'citcs',
+    'cte',
+    'cas'
   ];
 
   const scrollToResults = () => {
@@ -88,6 +82,10 @@ export default function ManageScreen() {
 
   const handleSubmit = async () => {
     // Validation
+    if (!formData.className) {
+      Alert.alert('Error', 'Please enter a class name');
+      return;
+    }
     if (!formData.classSize || formData.classSize <= 0) {
       Alert.alert('Error', 'Please enter a valid class size');
       return;
@@ -106,32 +104,97 @@ export default function ManageScreen() {
     }
 
     setIsLoading(true);
-    setSuggestions([]);
-    setExplanation('');
 
     try {
-      const response: AIResponse = await roomPredictionService.suggestRooms(formData);
-      setSuggestions(response.suggestions);
-      setExplanation(response.explanation);
-      
-      // Scroll to results after a short delay to ensure content is rendered
-      setTimeout(() => {
-        if (resultsRef.current && scrollViewRef.current) {
-          resultsRef.current.measureLayout(
-            scrollViewRef.current as any,
-            (x: number, y: number) => {
-              scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
-            },
-            () => {
-              // Fallback: scroll to end if measure fails
-              scrollViewRef.current?.scrollToEnd({ animated: true });
-            }
+      // Find available rooms that match the requirements
+      const roomAvailabilityChecks = await Promise.all(
+        ROOMS.map(async (room) => {
+          // Check capacity
+          if (room.capacity < formData.classSize) return null;
+          
+          // Check if room is available for the requested time slots
+          const isAvailable = await AssignmentService.isRoomAvailable(
+            room.id,
+            formData.schedule.days,
+            formData.schedule.startTime,
+            formData.schedule.endTime
           );
+          
+          return isAvailable ? room : null;
+        })
+      );
+
+      const availableRooms = roomAvailabilityChecks.filter(room => room !== null) as typeof ROOMS;
+
+      if (availableRooms.length === 0) {
+        Alert.alert(
+          'No Available Rooms', 
+          'No rooms are available for the selected time slots and requirements. Please try different time slots or reduce class size.'
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      // Sort rooms by suitability (capacity match, department match)
+      const sortedRooms = availableRooms.sort((a, b) => {
+        // Prefer rooms with capacity closer to class size
+        const aCapacityScore = Math.abs(a.capacity - formData.classSize);
+        const bCapacityScore = Math.abs(b.capacity - formData.classSize);
+        
+        // Prefer rooms from the same department
+        const aDeptMatch = a.department?.includes(formData.department) ? 0 : 1;
+        const bDeptMatch = b.department?.includes(formData.department) ? 0 : 1;
+        
+        return aDeptMatch - bDeptMatch || aCapacityScore - bCapacityScore;
+      });
+
+      // Take the best available room
+      const assignedRoom = sortedRooms[0];
+      
+      // Create the assignment
+      const assignment = await AssignmentService.addAssignment({
+        roomId: assignedRoom.id,
+        roomName: assignedRoom.name,
+        department: formData.department,
+        className: formData.className,
+        classSize: formData.classSize,
+        schedule: {
+          days: formData.schedule.days,
+          startTime: formData.schedule.startTime,
+          endTime: formData.schedule.endTime
         }
-      }, 500);
+      });
+
+      if (!assignment) {
+        Alert.alert('Error', 'Failed to save assignment. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Show success message with assignment details
+      const roomNumber = assignedRoom.id.replace('room-', '');
+      const building = assignedRoom.location.split(',')[0];
+      const scheduleText = `${formData.schedule.days.join(', ')} ${formData.schedule.startTime}-${formData.schedule.endTime}`;
+      
+      Alert.alert(
+        'Room Assigned Successfully!', 
+        `${formData.className} has been assigned to:\n\nRoom: ${roomNumber}\nBuilding: ${building}\nSchedule: ${scheduleText}\n\nYou can view this assignment in the Schedules page.`,
+        [{ text: 'OK', onPress: () => {
+          // Reset form
+          setFormData({
+            className: '',
+            classSize: 0,
+            department: '',
+            schedule: { days: [], startTime: '', endTime: '' },
+            requiredEquipment: [],
+            preferredRoomType: undefined
+          });
+        }}]
+      );
+
     } catch (error) {
-      Alert.alert('Error', 'Failed to get room suggestions. Please try again.');
-      console.error('Room suggestion error:', error);
+      console.error('Room assignment error:', error);
+      Alert.alert('Error', 'Failed to assign room. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -140,18 +203,6 @@ export default function ManageScreen() {
   // AI Helper form handlers
   const handleAiHelperSubmit = async () => {
     // Validation checks
-    if (!aiHelperData.facultyName) {
-      Alert.alert('Error', 'Please enter faculty name');
-      return;
-    }
-    if (!aiHelperData.courseCode) {
-      Alert.alert('Error', 'Please enter course code');
-      return;
-    }
-    if (!aiHelperData.courseName) {
-      Alert.alert('Error', 'Please enter course name');
-      return;
-    }
     if (!aiHelperData.prompt) {
       Alert.alert('Error', 'Please enter your request/question');
       return;
@@ -162,9 +213,9 @@ export default function ManageScreen() {
     
     try {
       const response = await roomPredictionService.getAIHelperResponse(
-        aiHelperData.facultyName,
-        aiHelperData.courseCode,
-        aiHelperData.courseName,
+        '', // facultyName - not needed
+        '', // courseCode - not needed  
+        '', // courseName - not needed
         aiHelperData.prompt
       );
       setAiHelperResponse(response);
@@ -369,52 +420,47 @@ export default function ManageScreen() {
         <ScrollView className="flex-1 px-4">
           {/* AI Helper Form */}
           <View className="bg-white rounded-lg p-4 mb-4 shadow-sm border border-gray-200">
-            <Text className="text-lg font-semibold text-gray-800 mb-4">Course Information</Text>
-            
-            {/* Faculty Name */}
+            <Text className="text-xl font-semibold text-gray-800 mb-4">How can we help you?</Text>
             <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-2">Faculty Name</Text>
               <TextInput
-                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
-                placeholder="Enter faculty name"
-                value={aiHelperData.facultyName}
-                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, facultyName: text }))}
-              />
-            </View>
-
-            {/* Course Code */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-2">Course Code</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
-                placeholder="e.g., CS101, MATH201"
-                value={aiHelperData.courseCode}
-                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, courseCode: text }))}
-              />
-            </View>
-
-            {/* Course Name */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-2">Course Name</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800"
-                placeholder="Enter course name"
-                value={aiHelperData.courseName}
-                onChangeText={(text) => setAiHelperData(prev => ({ ...prev, courseName: text }))}
-              />
-            </View>
-
-            {/* Custom Prompt */}
-            <View className="mb-4">
-              <Text className="text-sm font-medium text-gray-700 mb-2">Your Question/Request</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800 h-24"
-                placeholder="What would you like help with? e.g., 'What are the best room types for this course?', 'Suggest optimal scheduling for this faculty', etc."
+                className="border border-gray-300 rounded-lg px-3 py-2 text-gray-800 h-36"
+                placeholder="Use our sample prompts for best results!"
                 value={aiHelperData.prompt}
                 onChangeText={(text) => setAiHelperData(prev => ({ ...prev, prompt: text }))}
                 multiline
                 textAlignVertical="top"
               />
+            </View>
+
+            {/* Sample Prompts */}
+            <View className="mb-4">
+              <Text className="text-lg font-medium text-gray-700 mb-2">Useful Prompts:</Text>
+              <View className="space-y-2">
+                <TouchableOpacity
+                  onPress={() => setAiHelperData(prev => ({ ...prev, prompt: "What are the most suitable rooms for this course?" }))}
+                  className="bg-green-50 border border-green-200 rounded-lg p-2"
+                >
+                  <Text className="text-green-700 text-base">• What are the most suitable rooms for this course?</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setAiHelperData(prev => ({ ...prev, prompt: "What is the optimal class size and scheduling for this course?" }))}
+                  className="bg-green-50 border border-green-200 rounded-lg p-2 mt-2"
+                >
+                  <Text className="text-green-700 text-base">• What is the optimal class size and scheduling for this course?</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setAiHelperData(prev => ({ ...prev, prompt: "Which buildings have the best rooms for this type of course?" }))}
+                  className="bg-green-50 border border-green-200 rounded-lg p-2 mt-2"
+                >
+                  <Text className="text-green-700 text-base">• Which buildings have the best rooms for this type of course?</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setAiHelperData(prev => ({ ...prev, prompt: "How should I plan the weekly schedule for maximum student engagement?" }))}
+                  className="bg-green-50 border border-green-200 rounded-lg p-2 mt-2"
+                >
+                  <Text className="text-green-700 text-base">• How should I plan the weekly schedule for maximum student engagement?</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {/* Buttons */}
@@ -423,7 +469,7 @@ export default function ManageScreen() {
                 onPress={resetAiHelperForm}
                 className="flex-1 bg-gray-500 rounded-lg py-3 mr-2"
               >
-                <Text className="text-white text-center font-semibold">Clear Form</Text>
+                <Text className="text-lg text-white text-center font-semibold">Clear</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -434,7 +480,7 @@ export default function ManageScreen() {
                 {aiHelperLoading ? (
                   <ActivityIndicator color="white" />
                 ) : (
-                  <Text className="text-white text-center font-semibold">Get AI Assistance</Text>
+                  <Text className="text-lg text-white text-center font-semibold">Ask</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -442,8 +488,8 @@ export default function ManageScreen() {
 
           {/* AI Response */}
           {aiHelperResponse && (
-            <View className="bg-blue-50 rounded-lg p-4 mb-4 border border-blue-200">
-              <Text className="text-lg font-semibold text-blue-800 mb-3">AI Assistant Response</Text>
+            <View className="bg-green-50 rounded-lg p-4 mb-28 border border-green-950">
+              <Text className="text-lg font-semibold text-green-950 mb-3">AI Helper Response</Text>
               <Text className="text-gray-800 text-sm leading-6">{aiHelperResponse}</Text>
             </View>
           )}
@@ -454,10 +500,10 @@ export default function ManageScreen() {
 
   // Assign rooms form view
   return (
-    <View className="flex-1 bg-white">
+    <View className="flex-1 bg-white mb-14">
       <Header 
         title="Assign Rooms" 
-        subtitle="Use our built-in AI to find a suitable room"
+        subtitle="Assign rooms to classes quickly"
       />
       {/* Back Button */}
       <View className="px-4 pt-2">
@@ -478,6 +524,26 @@ export default function ManageScreen() {
       >
         <View className="p-4">
           <Text className="text-xl font-bold text-gray-800 mb-4">Class Information</Text>
+          
+          {/* Class Name */}
+          <View className="mb-4">
+            <Text className="text-base font-semibold text-gray-700 mb-1">Class Name</Text>
+            <TextInput
+              className="border border-gray-300 rounded-lg px-3 h-14 text-base bg-gray-50"
+              placeholder="Enter class name (e.g., Computer Science 101)"
+              value={formData.className || ''}
+              onChangeText={(text) => {
+                setFormData(prevData => ({
+                  ...prevData, 
+                  className: text
+                }));
+              }}
+              autoCorrect={false}
+              autoCapitalize="words"
+              returnKeyType="next"
+            />
+          </View>
+          
           <View className="flex-row gap-3 mb-4">
             {/* Class Size */}
             <View className="flex-1">
@@ -585,6 +651,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onStartHourMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {hours.map(h => (
                     <TouchableOpacity
@@ -604,6 +671,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onStartMinuteMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {minutes.map(m => (
                     <TouchableOpacity
@@ -623,6 +691,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onStartAmMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {ampm.map(a => (
                     <TouchableOpacity
@@ -647,6 +716,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onEndHourMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {hours.map(h => (
                     <TouchableOpacity
@@ -666,6 +736,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onEndMinuteMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {minutes.map(m => (
                     <TouchableOpacity
@@ -685,6 +756,7 @@ export default function ManageScreen() {
                   snapToAlignment="center"
                   decelerationRate="fast"
                   onMomentumScrollEnd={onEndAmMomentum}
+                  nestedScrollEnabled={true}
                 >
                   {ampm.map(a => (
                     <TouchableOpacity
@@ -707,60 +779,9 @@ export default function ManageScreen() {
             {isLoading ? (
               <ActivityIndicator color="white" />
             ) : (
-              <Text className="text-white text-base font-semibold">Get AI Suggestion</Text>
+              <Text className="text-white text-base font-semibold">Assign Room</Text>
             )}
           </TouchableOpacity>
-          
-          <View ref={resultsRef}>
-            {explanation && (
-              <View className="mt-5 p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
-                <View className="flex-row justify-between items-center mb-2">
-                  <Text className="text-base font-semibold text-blue-900">🤖 AI Analysis</Text>
-                  <TouchableOpacity 
-                    className="bg-gray-500 px-2 py-1 rounded-lg"
-                    onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
-                  >
-                    <Text className="text-white text-xs font-semibold">↑ Top</Text>
-                  </TouchableOpacity>
-                </View>
-                <Text className="text-sm text-gray-800 leading-5">{explanation}</Text>
-              </View>
-            )}
-
-            {suggestions.length > 0 && (
-              <View className="mt-5">
-                <View className="flex-row justify-between items-center mb-3">
-                  <Text className="text-xl font-bold text-gray-800">📍 Recommended Rooms</Text>
-                  <TouchableOpacity 
-                    className="bg-gray-500 px-2 py-1 rounded-lg"
-                    onPress={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
-                  >
-                    <Text className="text-white text-xs font-semibold">↑ Back to Form</Text>
-                  </TouchableOpacity>
-                </View>
-                {suggestions.map((suggestion, index) => {
-                  if (!suggestion || !suggestion.room) return null;
-                  
-                  const roomNumber = suggestion.room.id?.replace('room-', '') || 'Unknown';
-                  const building = suggestion.room.location?.split(',')[0] || 'Unknown Building';
-                  return (
-                <View key={suggestion.room.id || index} className="bg-slate-50 rounded-xl p-4 mb-4 border border-slate-200">
-                  <View className="flex-row justify-between items-center mb-2">
-                    <Text className="text-base font-bold text-gray-800 flex-1">{roomNumber} - {building}</Text>
-                    <View className="px-2 py-1 rounded-lg" style={{ backgroundColor: getScoreColor(suggestion.score || 0) }}>
-                      <Text className="text-white text-xs font-bold">{suggestion.score || 0}%</Text>
-                    </View>
-                  </View>
-                  
-                  <Text className="text-sm text-gray-600 mb-3">
-                    Type: {suggestion.room.name || 'Unknown'} • 📍 {suggestion.room.location || 'Unknown Location'} • 👥 Capacity: {suggestion.room.capacity || 0}
-                  </Text>
-                </View>
-              );
-                }).filter(Boolean)}
-              </View>
-            )}
-          </View>
         </View>
       </ScrollView>
     </View>
