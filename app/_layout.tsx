@@ -1,16 +1,20 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import * as Font from 'expo-font';
-import { Tabs } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
-import 'react-native-reanimated';
-import '../global.css';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import * as Font from "expo-font";
+import { Tabs } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
+import "react-native-reanimated";
+import "../global.css";
 
-import BottomNav from '@/components/bottom-nav';
-import LoadingScreen from '@/components/loading-screen';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import BottomNav from "@/components/bottom-nav";
+import LoadingScreen from "@/components/loading-screen";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -22,22 +26,21 @@ export default function RootLayout() {
   useEffect(() => {
     async function prepare() {
       try {
-        console.log('Starting app preparation...');
-        
+        console.log("Starting app preparation...");
+
         // Pre-load fonts, make any API calls you need to do here
         await Font.loadAsync({
           // Add any custom fonts here if needed
         });
-        
-        console.log('Fonts loaded, showing loading screen...');
-        
+
+        console.log("Fonts loaded, showing loading screen...");
+
         // Simulate loading time (minimum 3 seconds to show the loading screen)
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        
-        console.log('Loading complete, hiding splash screen...');
-        
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        console.log("Loading complete, hiding splash screen...");
       } catch (e) {
-        console.warn('Error during app preparation:', e);
+        console.warn("Error during app preparation:", e);
       } finally {
         // Tell the application to render
         setAppIsReady(true);
@@ -49,25 +52,28 @@ export default function RootLayout() {
   }, []);
 
   if (!appIsReady) {
-    console.log('App not ready, showing loading screen');
+    console.log("App not ready, showing loading screen");
     return <LoadingScreen />;
   }
 
-  console.log('App ready, showing main content');
+  console.log("App ready, showing main content");
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <View style={{ flex: 1 }}>
         <Tabs
           screenOptions={{
             headerShown: false,
-            tabBarStyle: { display: 'none' },
+            tabBarStyle: { display: "none" },
             lazy: true,
-          }}>
+          }}
+        >
           <Tabs.Screen name="index" />
-          <Tabs.Screen name="schedules" />
-          <Tabs.Screen name="manage" />
-          <Tabs.Screen name="utilities" />
+          <Tabs.Screen name="departments" />
+          <Tabs.Screen name="year-level" />
+          <Tabs.Screen name="blocks" />
+          <Tabs.Screen name="create-schedule" />
+          <Tabs.Screen name="building" />
         </Tabs>
         <BottomNav />
       </View>

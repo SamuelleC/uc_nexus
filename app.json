@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "uc-mapaaga",
-    "slug": "uc-mapaaga",
+    "slug": "uc-nexus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -37,6 +37,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3e786352-ba8e-4c2e-ac52-1f511d45aa99"
+      }
     }
   }
 }
