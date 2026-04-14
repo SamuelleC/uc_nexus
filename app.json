@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "uc-mapaaga",
+    "name": "UC Nexus",
     "slug": "uc-nexus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ucmapaaga",
+    "scheme": "ucnexus",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.ucmapaaga.app",
+      "package": "com.ucnexus.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -31,9 +31,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#F9FAFB"
     },
-    "plugins": [
-      "expo-router"
-    ],
+    "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

@@ -17,7 +17,6 @@ import {
   getBlocksWithSchedules,
 } from "../data/api-service";
 import {
-  BLOCKS,
   DEPARTMENTS,
   getBlockSchedule as getLocalBlockSchedule,
   YEAR_LEVELS,
@@ -33,7 +32,7 @@ export default function BlocksScreen() {
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
   const [availableBlocks, setAvailableBlocks] = useState<BlockInfo[]>([]);
   const [blockSchedule, setBlockSchedule] = useState<BlockScheduleData | null>(
-    null
+    null,
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingSchedule, setIsLoadingSchedule] = useState(false);
@@ -51,7 +50,7 @@ export default function BlocksScreen() {
     try {
       const blocks = await getBlocksWithSchedules(
         department || "citcs",
-        parseInt(yearLevel || "1")
+        parseInt(yearLevel || "1"),
       );
       if (blocks && blocks.length > 0) {
         setAvailableBlocks(blocks);
@@ -77,7 +76,7 @@ export default function BlocksScreen() {
         const schedule = await fetchBlockSchedule(
           department || "citcs",
           parseInt(yearLevel || "1"),
-          block
+          block,
         );
         if (schedule) {
           setBlockSchedule(schedule);
@@ -86,7 +85,7 @@ export default function BlocksScreen() {
           const localSchedule = getLocalBlockSchedule(
             department || "citcs",
             parseInt(yearLevel || "1"),
-            block
+            block,
           );
           if (localSchedule) {
             setBlockSchedule({
@@ -109,7 +108,7 @@ export default function BlocksScreen() {
                 endTime: "",
                 semester: "",
                 schoolYear: "",
-                yearLevel: localSchedule.yearLevel,
+                yearLevel: String(localSchedule.yearLevel),
                 term: null,
                 block: localSchedule.block,
                 isCITCC: false,
@@ -136,7 +135,7 @@ export default function BlocksScreen() {
         setIsLoadingSchedule(false);
       }
     },
-    [department, yearLevel]
+    [department, yearLevel],
   );
 
   useEffect(() => {

@@ -24,7 +24,7 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       loadUserSchedule();
-    }, [])
+    }, []),
   );
 
   const loadUserSchedule = async () => {
