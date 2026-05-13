@@ -33,8 +33,7 @@ export default function Building() {
   const [refreshing, setRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(true);
 
-  // Load assignments function with mount check
-  const loadAssignments = async () => {
+  const loadAssignments = useCallback(async () => {
     try {
       const allAssignments = await AssignmentService.getAllAssignments();
       if (isMounted) {
@@ -43,7 +42,7 @@ export default function Building() {
     } catch (error) {
       console.error("Error loading assignments:", error);
     }
-  };
+  }, [isMounted]);
 
   // Pull to refresh handler with mount check
   const onRefresh = async () => {
@@ -60,25 +59,22 @@ export default function Building() {
     }
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       setIsMounted(false);
     };
   }, []);
 
-  // Load assignments on component mount
   useEffect(() => {
-    loadAssignments();
-  }, []);
+    void loadAssignments();
+  }, [loadAssignments]);
 
-  // Reload assignments when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       if (isMounted) {
-        loadAssignments();
+        void loadAssignments();
       }
-    }, [isMounted]),
+    }, [isMounted, loadAssignments]),
   );
 
   // Helper function to get assignments for a specific room from state
@@ -196,22 +192,7 @@ export default function Building() {
     );
   }
 
-  const getAvailableSlots = (room: Room) => {
-    const today = new Date();
-    const currentDay = today
-      .toLocaleDateString("en-US", { weekday: "long" })
-      .toLowerCase();
-
-    // Get available slots for today
-    const todaySlots = room.availability.filter(
-      (slot) => slot.day === currentDay && slot.isAvailable,
-    );
-
-    return todaySlots;
-  };
-
   const getAllAvailableSlots = (room: Room) => {
-    // Get all available slots for all days
     return room.availability.filter((slot) => slot.isAvailable);
   };
 
@@ -449,7 +430,6 @@ export default function Building() {
 
                 {floor.rooms.map((room) => {
                   const roomNumber = room.id.replace("room-", "");
-                  const availableSlots = getAvailableSlots(room);
                   const isExpanded = expandedRoom === room.id;
 
                   return (

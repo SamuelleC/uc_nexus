@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClassSchedule } from "./class-schedule-data";
 
+/** AsyncStorage key for saved schedule JSON (`ClassSchedule[]`). */
 const USER_SCHEDULE_KEY = "@user_class_schedule";
 
 export interface UserScheduleService {
@@ -13,12 +14,10 @@ export interface UserScheduleService {
   clearSchedule: () => Promise<void>;
 }
 
-// Generate unique ID
 const generateId = (): string => {
   return `subject-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Auto-generate time slot based on existing schedules
 const generateTimeSlot = (existingSchedules: ClassSchedule[]): string => {
   const timeSlots = [
     "MWF 7:30-9:00 AM",
@@ -40,11 +39,9 @@ const generateTimeSlot = (existingSchedules: ClassSchedule[]): string => {
     return availableSlots[0];
   }
 
-  // If all slots are used, return the next available slot
   return timeSlots[existingSchedules.length % timeSlots.length];
 };
 
-// Auto-generate room based on course code
 const generateRoom = (courseCode: string): string => {
   const rooms = [
     "M301",
@@ -91,14 +88,22 @@ export const userScheduleService: UserScheduleService = {
   async addSubject(subject: Omit<ClassSchedule, "id">): Promise<ClassSchedule> {
     const schedule = await this.getUserSchedule();
 
-    // Auto-generate time and room if not provided
     const newSubject: ClassSchedule = {
       id: generateId(),
       section: subject.section,
       courseCode: subject.courseCode,
       description: subject.description,
-      schedule: subject.schedule || generateTimeSlot(schedule),
-      room: subject.room || generateRoom(subject.courseCode),
+      schedule:
+        subject.schedule !== undefined && String(subject.schedule).trim() !== ""
+          ? String(subject.schedule).trim()
+          : generateTimeSlot(schedule),
+      room:
+        subject.room !== undefined && String(subject.room).trim() !== ""
+          ? String(subject.room).trim()
+          : generateRoom(subject.courseCode),
+      ...(subject.instructor?.trim()
+        ? { instructor: subject.instructor.trim() }
+        : {}),
     };
 
     schedule.push(newSubject);

@@ -1,4 +1,5 @@
 import Header from "@/components/header";
+import { ScheduleTable } from "@/components/schedule-table";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -15,12 +16,23 @@ import {
   BlockScheduleData,
   getBlockSchedule as fetchBlockSchedule,
   getBlocksWithSchedules,
+  scheduleClassToScheduleTableRow,
 } from "../data/api-service";
 import {
   DEPARTMENTS,
   getBlockSchedule as getLocalBlockSchedule,
   YEAR_LEVELS,
 } from "../data/class-schedule-data";
+
+/**
+ * API block values may include a leading "BLOCK" (e.g. "BLOCK 1-A").
+ * Badge shows only the section id (e.g. "1-A"); title is always "Block {id}".
+ */
+function getBlockDisplaySegment(raw: string): string {
+  const t = raw.trim();
+  const stripped = t.replace(/^block\s*/i, "").trim();
+  return stripped.length > 0 ? stripped : t;
+}
 
 export default function BlocksScreen() {
   const insets = useSafeAreaInsets();
@@ -122,6 +134,7 @@ export default function BlocksScreen() {
                 labDays: null,
                 labStartTime: null,
                 labEndTime: null,
+                legacySchedule: c.schedule,
               })),
             });
           } else {
@@ -206,33 +219,48 @@ export default function BlocksScreen() {
               </TouchableOpacity>
             </View>
           ) : availableBlocks.length > 0 ? (
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 12,
-                justifyContent: "flex-start",
-              }}
-            >
-              {availableBlocks.map((blockInfo) => (
+            <View className="gap-3">
+              {availableBlocks.map((blockInfo) => {
+                const segment = getBlockDisplaySegment(blockInfo.block);
+                return (
                 <TouchableOpacity
                   key={blockInfo.block}
                   onPress={() => handleBlockPress(blockInfo.block)}
-                  className="bg-green-950 rounded-2xl p-4 items-center justify-center"
-                  style={{ width: "47%", minHeight: 60 }}
+                  activeOpacity={0.7}
+                  className="flex-row items-center overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm"
                 >
-                  <Text className="text-white text-lg font-bold">
-                    Block {blockInfo.block}
-                  </Text>
-                  <Text className="text-white text-xs opacity-70 mt-1">
-                    {deptName} {yearLevel}
-                    {blockInfo.block}
-                  </Text>
-                  <Text className="text-white text-xs opacity-50 mt-1">
-                    {blockInfo.scheduleCount} schedule(s)
-                  </Text>
+                  <View className="mr-4 h-[56px] w-[56px] items-center justify-center bg-green-950"
+                    style={{ borderRadius: 10 }}
+                  >
+                    <Text
+                      className="text-center font-bold text-white"
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.55}
+                      style={{ fontSize: 17, maxWidth: 52 }}
+                    >
+                      {segment}
+                    </Text>
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-lg font-semibold text-gray-900">
+                      Block {segment}
+                    </Text>
+                    <Text className="mt-0.5 text-sm text-gray-500">
+                      {deptName} · {yearName} · {blockInfo.scheduleCount}{" "}
+                      {blockInfo.scheduleCount === 1
+                        ? "schedule"
+                        : "schedules"}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={22}
+                    color="#94a3b8"
+                  />
                 </TouchableOpacity>
-              ))}
+              );
+              })}
             </View>
           ) : (
             <View className="bg-white rounded-lg p-6 items-center">
@@ -251,7 +279,7 @@ export default function BlocksScreen() {
   return (
     <View className="flex-1 bg-gray-100">
       <Header
-        title={`${deptName} ${yearLevel}${selectedBlock}`}
+        title={`${deptName} · ${yearName} · Block ${getBlockDisplaySegment(selectedBlock)}`}
         subtitle="Class Schedule"
       />
 
@@ -280,92 +308,9 @@ export default function BlocksScreen() {
             <Text className="text-gray-500 mt-4">Loading schedule...</Text>
           </View>
         ) : blockSchedule && blockSchedule.classes.length > 0 ? (
-          <View className="bg-white rounded-lg shadow overflow-hidden">
-            {/* Table Header */}
-            <View className="flex-row bg-green-950 p-3">
-              <Text
-                className="text-white font-bold flex-1"
-                style={{ minWidth: 80 }}
-              >
-                Code
-              </Text>
-              <Text className="text-white font-bold flex-2" style={{ flex: 2 }}>
-                Description
-              </Text>
-              <Text
-                className="text-white font-bold flex-1"
-                style={{ minWidth: 100 }}
-              >
-                Schedule
-              </Text>
-              <Text className="text-white font-bold" style={{ minWidth: 50 }}>
-                Room
-              </Text>
-            </View>
-
-            {/* Table Body */}
-            {blockSchedule.classes.map((classItem, index) => {
-              // Format days array to string (e.g., ["monday", "wednesday"] -> "M/W")
-              const daysFormatted = classItem.days
-                .map((d) => {
-                  const dayMap: Record<string, string> = {
-                    monday: "M",
-                    tuesday: "T",
-                    wednesday: "W",
-                    thursday: "Th",
-                    friday: "F",
-                    saturday: "S",
-                    sunday: "Su",
-                  };
-                  return dayMap[d.toLowerCase()] || d.charAt(0).toUpperCase();
-                })
-                .join("/");
-
-              // Format time (e.g., "07:30" -> "7:30 AM")
-              const formatTime = (time: string) => {
-                const [hours, minutes] = time.split(":");
-                const h = parseInt(hours);
-                const ampm = h >= 12 ? "PM" : "AM";
-                const h12 = h % 12 || 12;
-                return `${h12}:${minutes} ${ampm}`;
-              };
-
-              const scheduleStr = `${daysFormatted} ${formatTime(classItem.startTime)}-${formatTime(classItem.endTime)}`;
-
-              return (
-                <View
-                  key={classItem.id}
-                  className={`flex-row p-3 border-b border-gray-200 ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
-                >
-                  <Text
-                    className="text-gray-800 font-medium flex-1"
-                    style={{ minWidth: 80 }}
-                  >
-                    {classItem.classCode}
-                  </Text>
-                  <Text
-                    className="text-gray-700 flex-2"
-                    style={{ flex: 2 }}
-                    numberOfLines={2}
-                  >
-                    {classItem.className}
-                  </Text>
-                  <Text
-                    className="text-gray-600 flex-1"
-                    style={{ minWidth: 100 }}
-                  >
-                    {scheduleStr}
-                  </Text>
-                  <Text
-                    className="text-gray-800 font-medium"
-                    style={{ minWidth: 50 }}
-                  >
-                    {classItem.room}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
+          <ScheduleTable
+            rows={blockSchedule.classes.map(scheduleClassToScheduleTableRow)}
+          />
         ) : (
           <View className="bg-white rounded-lg p-6 items-center">
             <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />

@@ -4,7 +4,7 @@
     "slug": "uc-nexus",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/uclogo.png",
     "scheme": "ucnexus",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,22 +14,20 @@
     "android": {
       "package": "com.ucnexus.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/uclogo.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/uclogo.png"
     },
     "splash": {
-      "image": "./assets/images/logo.png",
+      "image": "./assets/images/uclogo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F9FAFB"
+      "backgroundColor": "#FFFFFF"
     },
     "plugins": ["expo-router"],
     "experiments": {

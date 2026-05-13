@@ -1,5 +1,3 @@
-// Class Schedule Data for CITCS Department
-
 export interface ClassSchedule {
   id: string;
   section: string;

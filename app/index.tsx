@@ -1,17 +1,30 @@
+import {
+  classScheduleToScheduleTableRow,
+  ScheduleTable,
+  type ScheduleTableRow,
+} from "@/components/schedule-table";
+import { BRAND_GREEN, SCREEN_GRAY_BG } from "@/constants/branding";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
 import {
-  SafeAreaView,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+  setStatusBarBackgroundColor,
+  setStatusBarStyle,
+} from "expo-status-bar";
+import { useCallback, useState } from "react";
+import { Platform, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ClassSchedule } from "../data/class-schedule-data";
 import { userScheduleService } from "../data/user-schedule-service";
+
+const PLACEHOLDER_SCHEDULE_ROWS: ScheduleTableRow[] = [1, 2, 3].map((i) => ({
+  id: `placeholder-${i}`,
+  courseName: "—",
+  courseCode: "—",
+  lectureRoom: "—",
+  lectureInstructor: "—",
+  lectureTime: "—",
+}));
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -20,10 +33,21 @@ export default function HomeScreen() {
   const [hasSchedule, setHasSchedule] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load user schedule when screen is focused
   useFocusEffect(
     useCallback(() => {
-      loadUserSchedule();
+      void loadUserSchedule();
+
+      setStatusBarStyle("light");
+      if (Platform.OS === "android") {
+        setStatusBarBackgroundColor(BRAND_GREEN, true);
+      }
+
+      return () => {
+        setStatusBarStyle("dark");
+        if (Platform.OS === "android") {
+          setStatusBarBackgroundColor(SCREEN_GRAY_BG, true);
+        }
+      };
     }, []),
   );
 
@@ -47,25 +71,34 @@ export default function HomeScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white">
-      {/* Main Content with SafeArea */}
-      <SafeAreaView className="flex-1">
-        <ScrollView
-          className="flex-1 px-6"
-          contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header with University Logo */}
-          <View className="mt-2 -mb-10">
-            <View className="items-center justify-center">
-              <Image
-                source={require("@/assets/images/logo.png")}
-                className="w-56 h-56"
-                contentFit="contain"
-              />
-            </View>
+    <View className="flex-1 bg-gray-100">
+      <View
+        className="overflow-hidden bg-green-950"
+        style={{ paddingTop: insets.top }}
+      >
+        <View className="absolute -right-10 -top-12 h-28 w-28 rounded-full bg-green-700/35" />
+        <View className="flex-row items-center gap-3 px-4 py-3">
+          <View className="rounded-xl bg-white/12 p-2">
+            <Image
+              source={require("@/assets/images/uclogo.png")}
+              className="h-12 w-12"
+              contentFit="contain"
+            />
           </View>
+          <View className="min-w-0 flex-1 justify-center">
+            <Text className="text-3xl font-bold text-white">UC Nexus</Text>
+          </View>
+        </View>
+      </View>
 
+      <ScrollView
+        className="flex-1 px-6"
+        contentContainerStyle={{
+          paddingTop: 16,
+          paddingBottom: 120 + insets.bottom,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
           {/* My Class Schedule Table */}
           <Text className="mb-4 text-xl font-medium text-zinc-500">
             My Class Schedule
@@ -93,136 +126,13 @@ export default function HomeScreen() {
               className="bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200"
               style={!hasSchedule && !isLoading ? { opacity: 0.3 } : {}}
             >
-              {/* Table Header */}
-              <View className="flex-row bg-green-950 p-3">
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 1.2 }}
-                >
-                  Section
-                </Text>
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 0.8 }}
-                >
-                  Code
-                </Text>
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 1.5 }}
-                >
-                  Description
-                </Text>
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 1 }}
-                >
-                  Time
-                </Text>
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 0.5 }}
-                >
-                  Room
-                </Text>
-              </View>
-
-              {/* Table Body */}
-              {hasSchedule
-                ? userSchedule.map((classItem, index) => {
-                    // Format section as 2 lines
-                    const sectionParts = classItem.section.split(" ");
-                    const sectionLine1 = sectionParts.slice(0, 2).join(" ");
-                    const sectionLine2 = sectionParts.slice(2).join(" ");
-
-                    // Format time as 3 lines (e.g., "MWF 7:30-8:50am" -> "MWF\n7:30 -\n8:50am")
-                    const timeParts = classItem.schedule.split(" ");
-                    const days = timeParts[0] || "";
-                    const timeRange = timeParts[1] || "";
-                    const [startTime, endTime] = timeRange.split("-");
-
-                    return (
-                      <View
-                        key={classItem.id}
-                        className={`flex-row p-3 border-b border-gray-100 ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
-                      >
-                        <View style={{ flex: 1.2 }}>
-                          <Text className="text-gray-700 text-xs">
-                            {sectionLine1}
-                          </Text>
-                          <Text className="text-gray-700 text-xs">
-                            {sectionLine2}
-                          </Text>
-                        </View>
-                        <Text
-                          className="text-gray-800 font-medium text-xs"
-                          style={{ flex: 0.8 }}
-                        >
-                          {classItem.courseCode}
-                        </Text>
-                        <Text
-                          className="text-gray-700 text-xs"
-                          style={{ flex: 1.5 }}
-                          numberOfLines={3}
-                        >
-                          {classItem.description}
-                        </Text>
-                        <View style={{ flex: 1 }}>
-                          <Text className="text-gray-600 text-xs">{days}</Text>
-                          <Text className="text-gray-600 text-xs">
-                            {startTime} -
-                          </Text>
-                          <Text className="text-gray-600 text-xs">
-                            {endTime}
-                          </Text>
-                        </View>
-                        <Text
-                          className="text-gray-800 font-medium text-xs"
-                          style={{ flex: 0.5 }}
-                        >
-                          {classItem.room}
-                        </Text>
-                      </View>
-                    );
-                  })
-                : // Placeholder rows for blur effect
-                  [1, 2, 3].map((i) => (
-                    <View
-                      key={i}
-                      className={`flex-row p-3 border-b border-gray-100 ${i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
-                    >
-                      <Text
-                        className="text-gray-400 text-xs"
-                        style={{ flex: 1.2 }}
-                      >
-                        ---
-                      </Text>
-                      <Text
-                        className="text-gray-400 text-xs"
-                        style={{ flex: 0.8 }}
-                      >
-                        ---
-                      </Text>
-                      <Text
-                        className="text-gray-400 text-xs"
-                        style={{ flex: 1.5 }}
-                      >
-                        ---
-                      </Text>
-                      <Text
-                        className="text-gray-400 text-xs"
-                        style={{ flex: 1 }}
-                      >
-                        ---
-                      </Text>
-                      <Text
-                        className="text-gray-400 text-xs"
-                        style={{ flex: 0.5 }}
-                      >
-                        ---
-                      </Text>
-                    </View>
-                  ))}
+            <ScheduleTable
+              rows={
+                hasSchedule
+                  ? userSchedule.map(classScheduleToScheduleTableRow)
+                  : PLACEHOLDER_SCHEDULE_ROWS
+              }
+            />
             </View>
           </View>
 
@@ -261,8 +171,7 @@ export default function HomeScreen() {
               </Text>
             </View>
           </TouchableOpacity>
-        </ScrollView>
-      </SafeAreaView>
+      </ScrollView>
     </View>
   );
 }

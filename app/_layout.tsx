@@ -6,78 +6,74 @@ import {
 import * as Font from "expo-font";
 import { Tabs } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import "react-native-reanimated";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import "../global.css";
 
+/**
+ * Root: loading gate → tab stack (headers off) + custom BottomNav.
+ * Add every route here and mirror it in `components/bottom-nav.tsx`.
+ */
 import BottomNav from "@/components/bottom-nav";
 import LoadingScreen from "@/components/loading-screen";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [appIsReady, setAppIsReady] = useState(false);
+  const [prepareDone, setPrepareDone] = useState(false);
+  const [enteredApp, setEnteredApp] = useState(false);
 
   useEffect(() => {
     async function prepare() {
       try {
-        console.log("Starting app preparation...");
-
-        // Pre-load fonts, make any API calls you need to do here
-        await Font.loadAsync({
-          // Add any custom fonts here if needed
-        });
-
-        console.log("Fonts loaded, showing loading screen...");
-
-        // Simulate loading time (minimum 3 seconds to show the loading screen)
-        await new Promise((resolve) => setTimeout(resolve, 3000));
-
-        console.log("Loading complete, hiding splash screen...");
+        await Font.loadAsync({});
       } catch (e) {
         console.warn("Error during app preparation:", e);
       } finally {
-        // Tell the application to render
-        setAppIsReady(true);
-        SplashScreen.hideAsync();
+        setPrepareDone(true);
+        await SplashScreen.hideAsync();
       }
     }
 
     prepare();
   }, []);
 
-  if (!appIsReady) {
-    console.log("App not ready, showing loading screen");
-    return <LoadingScreen />;
+  if (!enteredApp) {
+    return (
+      <SafeAreaProvider>
+        <LoadingScreen
+          canContinue={prepareDone}
+          onContinue={() => setEnteredApp(true)}
+        />
+      </SafeAreaProvider>
+    );
   }
 
-  console.log("App ready, showing main content");
-
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <View style={{ flex: 1 }}>
-        <Tabs
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: { display: "none" },
-            lazy: true,
-          }}
-        >
-          <Tabs.Screen name="index" />
-          <Tabs.Screen name="departments" />
-          <Tabs.Screen name="year-level" />
-          <Tabs.Screen name="blocks" />
-          <Tabs.Screen name="create-schedule" />
-          <Tabs.Screen name="building" />
-        </Tabs>
-        <BottomNav />
-      </View>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <View style={{ flex: 1 }}>
+          <Tabs
+            screenOptions={{
+              headerShown: false,
+              tabBarStyle: { display: "none" },
+              lazy: true,
+            }}
+          >
+            <Tabs.Screen name="index" />
+            <Tabs.Screen name="departments" />
+            <Tabs.Screen name="year-level" />
+            <Tabs.Screen name="blocks" />
+            <Tabs.Screen name="create-schedule" />
+            <Tabs.Screen name="building" />
+          </Tabs>
+          <BottomNav />
+        </View>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }

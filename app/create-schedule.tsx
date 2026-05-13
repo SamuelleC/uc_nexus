@@ -1,19 +1,39 @@
 import Header from "@/components/header";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
 import {
-    Alert,
-    Modal,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  classScheduleToScheduleTableRow,
+  ScheduleTable,
+} from "@/components/schedule-table";
+import { Ionicons } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
+import {
+  compareSectionDropdownLabels,
+  formatSectionDropdownLabel,
+  getAllSchedules,
+  getCourseCodesForSection,
+  getDistinctSectionLabels,
+  findCatalogScheduleClass,
+  scheduleClassToScheduleTableRow,
+  scheduleClassToUserSubjectFields,
+  type ScheduleClass,
+} from "@/data/api-service";
+import { formatBlockSectionDisplay } from "@/utils/section-block";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ClassSchedule } from "../data/class-schedule-data";
 import { userScheduleService } from "../data/user-schedule-service";
+
+const PICKER_PLACEHOLDER_SECTION = "__none_section__";
+const PICKER_PLACEHOLDER_CODE = "__none_code__";
 
 export default function CreateScheduleScreen() {
   const insets = useSafeAreaInsets();
@@ -27,16 +47,112 @@ export default function CreateScheduleScreen() {
   );
   const [isLoading, setIsLoading] = useState(true);
 
-  // Form state
-  const [section, setSection] = useState("");
-  const [courseCode, setCourseCode] = useState("");
-  const [description, setDescription] = useState("");
+  const [catalog, setCatalog] = useState<ScheduleClass[]>([]);
+  const [catalogState, setCatalogState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+
+  const [selectedSection, setSelectedSection] = useState(
+    PICKER_PLACEHOLDER_SECTION,
+  );
+  const [selectedCourseCode, setSelectedCourseCode] = useState(
+    PICKER_PLACEHOLDER_CODE,
+  );
 
   const isEditMode = mode === "edit";
+
+  const loadCatalog = useCallback(async () => {
+    setCatalogState("loading");
+    try {
+      const rows = await getAllSchedules();
+      setCatalog(rows);
+      setCatalogState("ready");
+    } catch {
+      setCatalog([]);
+      setCatalogState("error");
+    }
+  }, []);
 
   useEffect(() => {
     loadSchedule();
   }, []);
+
+  useEffect(() => {
+    if (isModalVisible && catalogState === "idle") {
+      void loadCatalog();
+    }
+  }, [isModalVisible, catalogState, loadCatalog]);
+
+  const sectionOptions = useMemo(() => {
+    const base = getDistinctSectionLabels(catalog);
+    if (editingSubject && catalog.length > 0) {
+      const match = catalog.find(
+        (r) =>
+          r.section.trim() === editingSubject.section.trim() &&
+          r.classCode.trim().toUpperCase() ===
+            editingSubject.courseCode.trim().toUpperCase(),
+      );
+      const label = match
+        ? formatSectionDropdownLabel(match)
+        : editingSubject.section.trim();
+      const exists = base.some(
+        (b) => b.toUpperCase() === label.toUpperCase(),
+      );
+      if (label && !exists) {
+        return [...base, label].sort(compareSectionDropdownLabels);
+      }
+    }
+    return base;
+  }, [catalog, editingSubject]);
+
+  const courseCodeOptions = useMemo(() => {
+    if (
+      !selectedSection ||
+      selectedSection === PICKER_PLACEHOLDER_SECTION
+    ) {
+      return [] as string[];
+    }
+    let codes = getCourseCodesForSection(catalog, selectedSection);
+    if (editingSubject && catalog.length > 0) {
+      const match = catalog.find(
+        (r) =>
+          r.section.trim() === editingSubject.section.trim() &&
+          r.classCode.trim().toUpperCase() ===
+            editingSubject.courseCode.trim().toUpperCase(),
+      );
+      const editSectionLabel = match
+        ? formatSectionDropdownLabel(match)
+        : editingSubject.section.trim();
+      if (
+        editSectionLabel.toUpperCase() === selectedSection.trim().toUpperCase()
+      ) {
+        const c = editingSubject.courseCode.trim();
+        if (
+          c &&
+          !codes.some((x) => x.toUpperCase() === c.toUpperCase())
+        ) {
+          codes = [...codes, c].sort((a, b) => a.localeCompare(b));
+        }
+      }
+    }
+    return codes;
+  }, [catalog, selectedSection, editingSubject]);
+
+  const catalogMatch = useMemo(() => {
+    if (
+      !selectedSection ||
+      selectedSection === PICKER_PLACEHOLDER_SECTION ||
+      !selectedCourseCode ||
+      selectedCourseCode === PICKER_PLACEHOLDER_CODE
+    ) {
+      return undefined;
+    }
+    return findCatalogScheduleClass(
+      catalog,
+      selectedSection,
+      selectedCourseCode,
+    );
+  }, [catalog, selectedSection, selectedCourseCode]);
 
   const loadSchedule = async () => {
     setIsLoading(true);
@@ -51,61 +167,107 @@ export default function CreateScheduleScreen() {
 
   const openAddModal = () => {
     setEditingSubject(null);
-    setSection("");
-    setCourseCode("");
-    setDescription("");
+    setSelectedSection(PICKER_PLACEHOLDER_SECTION);
+    setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
+    setCatalogState(catalog.length > 0 ? "ready" : "idle");
     setIsModalVisible(true);
   };
 
-  const openEditModal = (subject: ClassSchedule) => {
+  const openEditModal = async (subject: ClassSchedule) => {
     setEditingSubject(subject);
-    setSection(subject.section);
-    setCourseCode(subject.courseCode);
-    setDescription(subject.description);
+    setSelectedCourseCode(
+      subject.courseCode.trim() || PICKER_PLACEHOLDER_CODE,
+    );
     setIsModalVisible(true);
+
+    let rows = catalog;
+    if (rows.length === 0) {
+      setCatalogState("loading");
+      try {
+        rows = await getAllSchedules();
+        setCatalog(rows);
+        setCatalogState("ready");
+      } catch {
+        setCatalogState("error");
+        rows = [];
+      }
+    } else {
+      setCatalogState("ready");
+    }
+
+    const match = rows.find(
+      (r) =>
+        r.section.trim() === subject.section.trim() &&
+        r.classCode.trim().toUpperCase() ===
+          subject.courseCode.trim().toUpperCase(),
+    );
+    setSelectedSection(
+      match
+        ? formatSectionDropdownLabel(match)
+        : subject.section.trim() || PICKER_PLACEHOLDER_SECTION,
+    );
   };
 
   const closeModal = () => {
     setIsModalVisible(false);
     setEditingSubject(null);
-    setSection("");
-    setCourseCode("");
-    setDescription("");
+    setSelectedSection(PICKER_PLACEHOLDER_SECTION);
+    setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
   };
 
   const handleSave = async () => {
-    if (!section.trim() || !courseCode.trim() || !description.trim()) {
-      Alert.alert("Error", "Please fill in all fields");
+    if (
+      !selectedSection ||
+      selectedSection === PICKER_PLACEHOLDER_SECTION ||
+      !selectedCourseCode ||
+      selectedCourseCode === PICKER_PLACEHOLDER_CODE
+    ) {
+      Alert.alert("Required", "Please choose a section and a course code.");
+      return;
+    }
+
+    const match = catalogMatch;
+    if (!match) {
+      Alert.alert(
+        "Not found",
+        "No official schedule row matches that section and course. Pick values from the lists.",
+      );
+      return;
+    }
+
+    const payload = scheduleClassToUserSubjectFields(match);
+
+    const duplicate = schedule.some(
+      (s) =>
+        s.section.trim() === payload.section &&
+        s.courseCode.trim().toUpperCase() ===
+          payload.courseCode.trim().toUpperCase() &&
+        (!editingSubject || s.id !== editingSubject.id),
+    );
+
+    if (!editingSubject && duplicate) {
+      Alert.alert(
+        "Already added",
+        "This section and course are already on your schedule.",
+      );
       return;
     }
 
     try {
       if (editingSubject) {
-        // Update existing subject
-        await userScheduleService.updateSubject(editingSubject.id, {
-          section: section.trim(),
-          courseCode: courseCode.trim(),
-          description: description.trim(),
-        });
+        await userScheduleService.updateSubject(editingSubject.id, payload);
       } else {
-        // Add new subject - time and room will be auto-generated
-        await userScheduleService.addSubject({
-          section: section.trim(),
-          courseCode: courseCode.trim(),
-          description: description.trim(),
-          schedule: "", // Will be auto-generated
-          room: "", // Will be auto-generated
-        });
+        await userScheduleService.addSubject(payload);
       }
 
       await loadSchedule();
       closeModal();
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Failed to save subject");
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string, onAfterDelete?: () => void) => {
     Alert.alert(
       "Delete Subject",
       "Are you sure you want to delete this subject?",
@@ -117,6 +279,7 @@ export default function CreateScheduleScreen() {
           onPress: async () => {
             await userScheduleService.deleteSubject(id);
             await loadSchedule();
+            onAfterDelete?.();
           },
         },
       ],
@@ -130,11 +293,10 @@ export default function CreateScheduleScreen() {
         subtitle="Add Subjects"
       />
 
-      {/* Back Button */}
       <View className="px-4 pt-2">
         <TouchableOpacity
           onPress={handleBack}
-          className="flex-row items-center mb-2"
+          className="mb-2 flex-row items-center"
         >
           <Ionicons name="arrow-back" size={32} color="#0c3112" />
         </TouchableOpacity>
@@ -144,123 +306,47 @@ export default function CreateScheduleScreen() {
         style={{ flex: 1, padding: 16 }}
         contentContainerStyle={{ paddingBottom: 104 + insets.bottom }}
       >
-        {/* Add Subject Button */}
         <TouchableOpacity
           onPress={openAddModal}
-          className="bg-white rounded-lg p-4 mb-4 flex-row items-center justify-center border-2 border-dashed border-green-950"
+          className="mb-4 flex-row items-center justify-center rounded-lg border-2 border-dashed border-green-950 bg-white p-4"
         >
-          <View className="bg-green-950 rounded-full p-2 mr-3">
+          <View className="mr-3 rounded-full bg-green-950 p-2">
             <Ionicons name="add" size={24} color="white" />
           </View>
-          <Text className="text-green-950 font-semibold text-lg">
+          <Text className="text-lg font-semibold text-green-950">
             Add Subject
           </Text>
         </TouchableOpacity>
 
-        {/* Schedule Table */}
         {schedule.length > 0 ? (
-          <View className="bg-white rounded-lg shadow overflow-hidden">
-            {/* Table Header */}
-            <View className="flex-row bg-green-950 p-3">
-              <Text
-                className="text-white font-bold text-xs"
-                style={{ flex: 1.2 }}
-              >
-                Section
-              </Text>
-              <Text
-                className="text-white font-bold text-xs"
-                style={{ flex: 0.8 }}
-              >
-                Code
-              </Text>
-              <Text
-                className="text-white font-bold text-xs"
-                style={{ flex: 1.2 }}
-              >
-                Description
-              </Text>
-              <Text
-                className="text-white font-bold text-xs"
-                style={{ flex: 1 }}
-              >
-                Schedule
-              </Text>
-              <Text
-                className="text-white font-bold text-xs"
-                style={{ flex: 0.5 }}
-              >
-                Room
-              </Text>
-              {isEditMode && (
-                <Text
-                  className="text-white font-bold text-xs"
-                  style={{ flex: 0.5 }}
-                >
-                  Actions
-                </Text>
-              )}
-            </View>
-
-            {/* Table Body */}
-            {schedule.map((subject, index) => (
-              <View
-                key={subject.id}
-                className={`flex-row p-3 border-b border-gray-100 items-center ${index % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
-              >
-                <Text
-                  className="text-gray-700 text-xs"
-                  style={{ flex: 1.2 }}
-                  numberOfLines={2}
-                >
-                  {subject.section}
-                </Text>
-                <Text
-                  className="text-gray-800 font-medium text-xs"
-                  style={{ flex: 0.8 }}
-                >
-                  {subject.courseCode}
-                </Text>
-                <Text
-                  className="text-gray-700 text-xs"
-                  style={{ flex: 1.2 }}
-                  numberOfLines={2}
-                >
-                  {subject.description}
-                </Text>
-                <Text className="text-gray-600 text-xs" style={{ flex: 1 }}>
-                  {subject.schedule}
-                </Text>
-                <Text
-                  className="text-gray-800 font-medium text-xs"
-                  style={{ flex: 0.5 }}
-                >
-                  {subject.room}
-                </Text>
-                {isEditMode && (
-                  <View style={{ flex: 0.5 }} className="flex-row">
-                    <TouchableOpacity
-                      onPress={() => openEditModal(subject)}
-                      className="mr-2"
-                    >
-                      <Ionicons name="pencil" size={16} color="#0c3112" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(subject.id)}>
-                      <Ionicons name="trash" size={16} color="#EF4444" />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
+          <ScheduleTable
+            rows={schedule.map(classScheduleToScheduleTableRow)}
+            renderActions={
+              isEditMode
+                ? (row) => (
+                    <View className="items-center justify-center">
+                      <TouchableOpacity
+                        onPress={() => {
+                          const s = schedule.find((x) => x.id === row.id);
+                          if (s) void openEditModal(s);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="pencil" size={24} color="#0c3112" />
+                      </TouchableOpacity>
+                    </View>
+                  )
+                : undefined
+            }
+          />
         ) : (
           !isLoading && (
-            <View className="bg-white rounded-lg p-8 items-center">
+            <View className="items-center rounded-lg bg-white p-8">
               <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
-              <Text className="text-gray-500 mt-4 text-center text-lg">
+              <Text className="mt-4 text-center text-lg text-gray-500">
                 No subjects added yet
               </Text>
-              <Text className="text-gray-400 mt-2 text-center">
+              <Text className="mt-2 text-center text-gray-400">
                 Tap the button above to add your first subject
               </Text>
             </View>
@@ -268,7 +354,6 @@ export default function CreateScheduleScreen() {
         )}
       </ScrollView>
 
-      {/* Add/Edit Subject Modal */}
       <Modal
         visible={isModalVisible}
         transparent
@@ -276,8 +361,8 @@ export default function CreateScheduleScreen() {
         onRequestClose={closeModal}
       >
         <View className="flex-1 justify-end bg-black/50">
-          <View className="bg-white rounded-t-3xl p-6">
-            <View className="flex-row justify-between items-center mb-6">
+          <View className="max-h-[90%] rounded-t-3xl bg-white p-6">
+            <View className="mb-4 flex-row items-center justify-between">
               <Text className="text-xl font-bold text-gray-800">
                 {editingSubject ? "Edit Subject" : "Add Subject"}
               </Text>
@@ -286,55 +371,157 @@ export default function CreateScheduleScreen() {
               </TouchableOpacity>
             </View>
 
-            <View className="mb-4">
-              <Text className="text-gray-700 font-medium mb-2">Section</Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-4 py-3 text-gray-800"
-                placeholder="e.g., CITCS 3F Group B"
-                value={section}
-                onChangeText={setSection}
-              />
-            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
+              {catalogState === "loading" && (
+                <View className="mb-4 items-center py-6">
+                  <ActivityIndicator size="large" color="#052e16" />
+                  <Text className="mt-2 text-sm text-gray-500">
+                    Loading official schedule options
+                  </Text>
+                </View>
+              )}
 
-            <View className="mb-4">
-              <Text className="text-gray-700 font-medium mb-2">
-                Course Code
-              </Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-4 py-3 text-gray-800"
-                placeholder="e.g., CC 106"
-                value={courseCode}
-                onChangeText={setCourseCode}
-                autoCapitalize="characters"
-              />
-            </View>
+              {catalogState === "error" && (
+                <View className="mb-4 rounded-lg bg-red-50 p-4">
+                  <Text className="text-center text-sm text-red-800">
+                    Could not load schedule options. Check your connection.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCatalogState("idle");
+                      void loadCatalog();
+                    }}
+                    className="mt-3 items-center"
+                  >
+                    <Text className="font-semibold text-green-950">Retry</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
-            <View className="mb-4">
-              <Text className="text-gray-700 font-medium mb-2">
-                Course Description
-              </Text>
-              <TextInput
-                className="border border-gray-300 rounded-lg px-4 py-3 text-gray-800"
-                placeholder="e.g., Application Development"
-                value={description}
-                onChangeText={setDescription}
-              />
-            </View>
+              {catalogState === "ready" && sectionOptions.length === 0 && (
+                <Text className="mb-4 text-center text-sm text-gray-600">
+                  No active schedules in the database yet. You cannot add
+                  subjects until data is available.
+                </Text>
+              )}
 
-            <View className="mb-6 p-4 bg-gray-100 rounded-lg">
-              <Text className="text-gray-500 text-sm text-center">
-                Time and Room will be automatically assigned
-              </Text>
-            </View>
+              {catalogState === "ready" && sectionOptions.length > 0 && (
+                <>
+                  <Text className="mb-2 font-medium text-gray-700">
+                    Section
+                  </Text>
+                  <View className="mb-4 overflow-hidden rounded-lg border border-gray-300 bg-white">
+                    <Picker
+                      selectedValue={selectedSection}
+                      onValueChange={(v) => {
+                        setSelectedSection(String(v));
+                        setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
+                      }}
+                    >
+                      <Picker.Item
+                        label="Select section"
+                        value={PICKER_PLACEHOLDER_SECTION}
+                      />
+                      {sectionOptions.map((s) => (
+                        <Picker.Item
+                          key={s}
+                          label={formatBlockSectionDisplay(s)}
+                          value={s}
+                        />
+                      ))}
+                    </Picker>
+                  </View>
 
-            <TouchableOpacity
-              onPress={handleSave}
-              className="bg-green-950 rounded-lg py-4"
-            >
-              <Text className="text-white text-center font-semibold text-lg">
-                {editingSubject ? "Update Subject" : "Add Subject"}
-              </Text>
-            </TouchableOpacity>
+                  <Text className="mb-2 font-medium text-gray-700">
+                    Course code
+                  </Text>
+                  <View
+                    className={`mb-4 overflow-hidden rounded-lg border border-gray-300 bg-white ${
+                      selectedSection === PICKER_PLACEHOLDER_SECTION ||
+                      courseCodeOptions.length === 0
+                        ? "opacity-50"
+                        : ""
+                    }`}
+                    pointerEvents={
+                      selectedSection !== PICKER_PLACEHOLDER_SECTION &&
+                      courseCodeOptions.length > 0
+                        ? "auto"
+                        : "none"
+                    }
+                  >
+                    <Picker
+                      selectedValue={selectedCourseCode}
+                      onValueChange={(v) =>
+                        setSelectedCourseCode(String(v))
+                      }
+                    >
+                      <Picker.Item
+                        label={
+                          selectedSection === PICKER_PLACEHOLDER_SECTION
+                            ? "Choose a section first"
+                            : "Select course code"
+                        }
+                        value={PICKER_PLACEHOLDER_CODE}
+                      />
+                      {courseCodeOptions.map((code) => (
+                        <Picker.Item key={code} label={code} value={code} />
+                      ))}
+                    </Picker>
+                  </View>
+
+                  {catalogMatch && (
+                    <View className="mb-6">
+                      <Text className="mb-2 text-xs font-bold uppercase text-gray-600">
+                        Schedule preview
+                      </Text>
+                      <ScheduleTable
+                        rows={[
+                          {
+                            ...scheduleClassToScheduleTableRow(catalogMatch),
+                            section: formatBlockSectionDisplay(
+                              selectedSection,
+                            ),
+                          },
+                        ]}
+                      />
+                    </View>
+                  )}
+                </>
+              )}
+
+              {editingSubject && (
+                <TouchableOpacity
+                  onPress={() =>
+                    handleDelete(editingSubject.id, closeModal)
+                  }
+                  className="mb-4 rounded-lg border border-red-200 bg-red-50 py-3.5"
+                >
+                  <Text className="text-center text-base font-semibold text-red-700">
+                    Delete Subject
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                onPress={handleSave}
+                disabled={
+                  !catalogMatch ||
+                  catalogState !== "ready" ||
+                  sectionOptions.length === 0
+                }
+                className={`rounded-lg py-4 ${
+                  catalogMatch &&
+                  catalogState === "ready" &&
+                  sectionOptions.length > 0
+                    ? "bg-green-950"
+                    : "bg-gray-300"
+                }`}
+              >
+                <Text className="text-center text-lg font-semibold text-white">
+                  {editingSubject ? "Update Subject" : "Add Subject"}
+                </Text>
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>

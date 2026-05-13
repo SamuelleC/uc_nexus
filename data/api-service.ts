@@ -1,17 +1,14 @@
-// API Service for fetching data from Supabase
-// Supabase provides a REST API that works with mobile apps (no security block!)
+/**
+ * Supabase REST: schedules, blocks, buildings, rooms.
+ * Prefer env-based `SUPABASE_URL` / `SUPABASE_ANON_KEY` in production.
+ */
+import { roomCodeOrOriginal } from "@/utils/room-code";
 
-// =============================================================================
-// CONFIGURATION - Replace these with your Supabase project credentials
-// Find them at: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api
-// =============================================================================
-const SUPABASE_URL = "https://qapesjenuidodiqjkecd.supabase.co"; // e.g., "https://abcdefgh.supabase.co"
+import type { ScheduleTableRow } from "@/components/schedule-table";
+
+const SUPABASE_URL = "https://qapesjenuidodiqjkecd.supabase.co";
 const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhcGVzamVudWlkb2RpcWprZWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzOTczMTMsImV4cCI6MjA5MDk3MzMxM30.4QTle3oi0qMw3or3llv-R11VGLL-Bio3yfNuo30ZdPg"; // The public "anon" key
-
-// =============================================================================
-// TYPES
-// =============================================================================
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhcGVzamVudWlkb2RpcWprZWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzOTczMTMsImV4cCI6MjA5MDk3MzMxM30.4QTle3oi0qMw3or3llv-R11VGLL-Bio3yfNuo30ZdPg";
 
 export interface BlockInfo {
   block: string;
@@ -48,6 +45,8 @@ export interface ScheduleClass {
   labDays: string | null;
   labStartTime: string | null;
   labEndTime: string | null;
+  /** Populated when mapping from local bundled schedule (no structured times) */
+  legacySchedule?: string | null;
 }
 
 export interface BlockScheduleData {
@@ -109,10 +108,6 @@ interface SupabaseSchedule {
   lab_end_time: string | null;
 }
 
-// =============================================================================
-// SUPABASE FETCH HELPER
-// =============================================================================
-
 async function supabaseFetch<T>(
   table: string,
   query: string = "",
@@ -148,12 +143,7 @@ async function supabaseFetch<T>(
   }
 }
 
-// =============================================================================
-// TRANSFORM HELPERS
-// =============================================================================
-
 function transformSchedule(s: SupabaseSchedule): ScheduleClass {
-  // Parse days string to array (e.g., "monday,wednesday" -> ["monday", "wednesday"])
   const daysArray = s.days
     ? s.days.split(/[,\/]/).map((d) => d.trim().toLowerCase())
     : [];
@@ -164,7 +154,7 @@ function transformSchedule(s: SupabaseSchedule): ScheduleClass {
       `${s.department_id || ""} ${s.year_level || ""}${s.block || ""}`.trim(),
     classCode: s.class_code,
     className: s.class_name,
-    room: s.room_display || s.room_id || "",
+    room: roomCodeOrOriginal(s.room_display || s.room_id || ""),
     roomId: s.room_id,
     instructor: s.instructor || "",
     department: s.department_id || "",
@@ -179,12 +169,12 @@ function transformSchedule(s: SupabaseSchedule): ScheduleClass {
     term: s.term,
     block: s.block,
     isCITCC: s.is_citcc || false,
-    lecRoom: s.lec_room,
+    lecRoom: s.lec_room ? roomCodeOrOriginal(s.lec_room) : null,
     lecInstructor: s.lec_instructor,
     lecDays: s.lec_days,
     lecStartTime: s.lec_start_time ? s.lec_start_time.substring(0, 5) : null,
     lecEndTime: s.lec_end_time ? s.lec_end_time.substring(0, 5) : null,
-    labRoom: s.lab_room,
+    labRoom: s.lab_room ? roomCodeOrOriginal(s.lab_room) : null,
     labInstructor: s.lab_instructor,
     labDays: s.lab_days,
     labStartTime: s.lab_start_time ? s.lab_start_time.substring(0, 5) : null,
@@ -192,9 +182,210 @@ function transformSchedule(s: SupabaseSchedule): ScheduleClass {
   };
 }
 
-// =============================================================================
-// BLOCKS API
-// =============================================================================
+const DAY_ABBREV_MAP: Record<string, string> = {
+  monday: "M",
+  tuesday: "T",
+  wednesday: "W",
+  thursday: "Th",
+  friday: "F",
+  saturday: "S",
+  sunday: "Su",
+};
+
+function parseDaysFromString(raw: string | null): string[] {
+  if (!raw) return [];
+  return raw
+    .split(/[,\/]/)
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function abbrevDayList(list: string[]): string {
+  if (!list.length) return "";
+  return list
+    .map((d) => DAY_ABBREV_MAP[d] || d.charAt(0).toUpperCase())
+    .join("/");
+}
+
+function formatTimeShort(time: string | null | undefined): string {
+  if (!time) return "";
+  const [hours, minutes] = time.split(":");
+  const h = parseInt(hours, 10);
+  if (Number.isNaN(h)) return time;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${minutes ?? "00"} ${ampm}`;
+}
+
+/** One-line schedule text for calendar / user schedule rows */
+export function formatScheduleClassCalendarLine(c: ScheduleClass): string {
+  const lecDaysList = parseDaysFromString(c.lecDays);
+  const dayList = lecDaysList.length > 0 ? lecDaysList : c.days || [];
+  const ab = abbrevDayList(dayList);
+  const st = (c.lecStartTime || c.startTime || "").trim();
+  const et = (c.lecEndTime || c.endTime || "").trim();
+  if (!st && !et) {
+    if (c.legacySchedule?.trim()) return c.legacySchedule.trim();
+    return "—";
+  }
+  const range = `${formatTimeShort(st)}-${formatTimeShort(et)}`;
+  return ab ? `${ab} ${range}` : range;
+}
+
+function rowHasLaboratorySchedule(c: ScheduleClass): boolean {
+  return !!(
+    c.labRoom?.trim() ||
+    c.labInstructor?.trim() ||
+    c.labDays?.trim() ||
+    c.labStartTime?.trim() ||
+    c.labEndTime?.trim()
+  );
+}
+
+function formatLabTimeLineForClass(c: ScheduleClass): string {
+  const dayList = parseDaysFromString(c.labDays);
+  const ab = abbrevDayList(dayList);
+  const st = (c.labStartTime || "").trim();
+  const et = (c.labEndTime || "").trim();
+  if (!st && !et) return "";
+  const range = `${formatTimeShort(st)}-${formatTimeShort(et)}`;
+  return ab ? `${ab} ${range}` : range;
+}
+
+/** Single row for `ScheduleTable` (blocks screen, add-subject preview, etc.) */
+export function scheduleClassToScheduleTableRow(
+  c: ScheduleClass,
+): ScheduleTableRow {
+  const hasLab = rowHasLaboratorySchedule(c);
+  return {
+    id: String(c.id),
+    courseName: c.className,
+    courseCode: c.classCode,
+    lectureRoom:
+      roomCodeOrOriginal(c.lecRoom?.trim() || c.room?.trim() || "—") || "—",
+    lectureInstructor:
+      c.lecInstructor?.trim() || c.instructor?.trim() || "—",
+    lectureTime: formatScheduleClassCalendarLine(c),
+    labRoom: hasLab ? roomCodeOrOriginal(c.labRoom?.trim() || "—") : "",
+    labInstructor: hasLab ? c.labInstructor?.trim() || "—" : "",
+    labTime: hasLab ? formatLabTimeLineForClass(c) || "—" : "",
+  };
+}
+
+/** Strip leading "BLOCK" prefix (case-insensitive) from block identifiers */
+function stripBlockPrefix(raw: string): string {
+  const t = String(raw).trim();
+  const stripped = t.replace(/^block\s*/i, "").trim();
+  return stripped.length > 0 ? stripped : t;
+}
+
+function compactUpper(s: string): string {
+  return s.replace(/\s+/g, "").toUpperCase();
+}
+
+/**
+ * Section label for pickers: `{year}-{block}` e.g. `1-H`, `2-K`, `3-H`.
+ */
+export function formatSectionDropdownLabel(c: ScheduleClass): string {
+  const blockRaw = (c.block ?? "").toString().trim();
+  let seg = blockRaw ? stripBlockPrefix(blockRaw) : "";
+  if (/^\d{1,2}-.+$/i.test(seg)) {
+    return compactUpper(seg);
+  }
+
+  const yr = (c.yearLevel ?? "").toString().trim();
+  const yNum = yr.replace(/\D/g, "");
+  if (yNum && seg) {
+    return `${yNum}-${compactUpper(seg)}`;
+  }
+
+  const sec = (c.section || "").trim();
+  const tail = sec.match(/(\d{1,2})\s*([A-Za-z0-9\-]+)\s*$/);
+  if (tail) {
+    return `${tail[1]}-${compactUpper(tail[2])}`;
+  }
+
+  const fallback = stripBlockPrefix(sec);
+  if (fallback) return compactUpper(fallback);
+
+  return compactUpper(sec) || "—";
+}
+
+export function compareSectionDropdownLabels(a: string, b: string): number {
+  const ma = /^(\d+)-(.+)$/.exec(a);
+  const mb = /^(\d+)-(.+)$/.exec(b);
+  if (ma && mb) {
+    const ya = parseInt(ma[1], 10);
+    const yb = parseInt(mb[1], 10);
+    if (ya !== yb) return ya - yb;
+    return ma[2].localeCompare(mb[2], undefined, { numeric: true });
+  }
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+export function getDistinctSectionLabels(rows: ScheduleClass[]): string[] {
+  const set = new Set(
+    rows
+      .map((r) => formatSectionDropdownLabel(r))
+      .filter((s) => s && s !== "—"),
+  );
+  return Array.from(set).sort(compareSectionDropdownLabels);
+}
+
+export function getCourseCodesForSection(
+  rows: ScheduleClass[],
+  sectionDropdownLabel: string,
+): string[] {
+  const key = sectionDropdownLabel.trim().toUpperCase();
+  const codes = new Set(
+    rows
+      .filter(
+        (r) => formatSectionDropdownLabel(r).toUpperCase() === key,
+      )
+      .map((r) => r.classCode.trim())
+      .filter(Boolean),
+  );
+  return Array.from(codes).sort((a, b) => a.localeCompare(b));
+}
+
+export function findCatalogScheduleClass(
+  rows: ScheduleClass[],
+  sectionDropdownLabel: string,
+  classCode: string,
+): ScheduleClass | undefined {
+  const key = sectionDropdownLabel.trim().toUpperCase();
+  const code = classCode.trim().toUpperCase();
+  return rows.find(
+    (r) =>
+      formatSectionDropdownLabel(r).toUpperCase() === key &&
+      r.classCode.trim().toUpperCase() === code,
+  );
+}
+
+/** Map a DB schedule row into fields stored in the user's personal schedule */
+export function scheduleClassToUserSubjectFields(c: ScheduleClass): {
+  section: string;
+  courseCode: string;
+  description: string;
+  schedule: string;
+  room: string;
+  instructor?: string;
+} {
+  const roomDisplay =
+    (c.lecRoom && c.lecRoom.trim()) || (c.room && c.room.trim()) || "—";
+  const inst =
+    (c.lecInstructor && c.lecInstructor.trim()) ||
+    (c.instructor && c.instructor.trim()) ||
+    "";
+  return {
+    section: c.section.trim(),
+    courseCode: c.classCode.trim(),
+    description: c.className.trim(),
+    schedule: formatScheduleClassCalendarLine(c),
+    room: roomDisplay,
+    ...(inst ? { instructor: inst } : {}),
+  };
+}
 
 /**
  * Get blocks that have schedules for a specific department and year level
@@ -302,10 +493,6 @@ export async function getBlocksOverview(): Promise<Record<
   return Object.keys(overview).length > 0 ? overview : null;
 }
 
-// =============================================================================
-// SCHEDULES API
-// =============================================================================
-
 /**
  * Get all schedules
  */
@@ -330,10 +517,6 @@ export async function getSchedulesByDepartment(
   );
   return schedules.map(transformSchedule);
 }
-
-// =============================================================================
-// BUILDINGS & ROOMS API
-// =============================================================================
 
 /**
  * Get all buildings
