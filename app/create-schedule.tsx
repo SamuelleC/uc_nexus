@@ -1,10 +1,10 @@
 import Header from "@/components/header";
+import { SelectField } from "@/components/select-field";
 import {
   classScheduleToScheduleTableRow,
   ScheduleTable,
 } from "@/components/schedule-table";
 import { Ionicons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
 import {
   compareSectionDropdownLabels,
   formatSectionDropdownLabel,
@@ -57,6 +57,9 @@ export default function CreateScheduleScreen() {
   );
   const [selectedCourseCode, setSelectedCourseCode] = useState(
     PICKER_PLACEHOLDER_CODE,
+  );
+  const [openSelect, setOpenSelect] = useState<"section" | "course" | null>(
+    null,
   );
 
   const isEditMode = mode === "edit";
@@ -154,6 +157,20 @@ export default function CreateScheduleScreen() {
     );
   }, [catalog, selectedSection, selectedCourseCode]);
 
+  const sectionSelectOptions = useMemo(
+    () =>
+      sectionOptions.map((s) => ({
+        label: formatBlockSectionDisplay(s),
+        value: s,
+      })),
+    [sectionOptions],
+  );
+
+  const courseSelectOptions = useMemo(
+    () => courseCodeOptions.map((code) => ({ label: code, value: code })),
+    [courseCodeOptions],
+  );
+
   const loadSchedule = async () => {
     setIsLoading(true);
     const userSchedule = await userScheduleService.getUserSchedule();
@@ -169,12 +186,14 @@ export default function CreateScheduleScreen() {
     setEditingSubject(null);
     setSelectedSection(PICKER_PLACEHOLDER_SECTION);
     setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
+    setOpenSelect(null);
     setCatalogState(catalog.length > 0 ? "ready" : "idle");
     setIsModalVisible(true);
   };
 
   const openEditModal = async (subject: ClassSchedule) => {
     setEditingSubject(subject);
+    setOpenSelect(null);
     setSelectedCourseCode(
       subject.courseCode.trim() || PICKER_PLACEHOLDER_CODE,
     );
@@ -213,6 +232,7 @@ export default function CreateScheduleScreen() {
     setEditingSubject(null);
     setSelectedSection(PICKER_PLACEHOLDER_SECTION);
     setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
+    setOpenSelect(null);
   };
 
   const handleSave = async () => {
@@ -400,74 +420,47 @@ export default function CreateScheduleScreen() {
 
               {catalogState === "ready" && sectionOptions.length === 0 && (
                 <Text className="mb-4 text-center text-sm text-gray-600">
-                  No active schedules in the database yet. You cannot add
-                  subjects until data is available.
+                  No schedules have been published to the mobile app yet. Ask
+                  your admin to upload schedules from the web system.
                 </Text>
               )}
 
               {catalogState === "ready" && sectionOptions.length > 0 && (
                 <>
-                  <Text className="mb-2 font-medium text-gray-700">
-                    Section
-                  </Text>
-                  <View className="mb-4 overflow-hidden rounded-lg border border-gray-300 bg-white">
-                    <Picker
-                      selectedValue={selectedSection}
-                      onValueChange={(v) => {
-                        setSelectedSection(String(v));
-                        setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
-                      }}
-                    >
-                      <Picker.Item
-                        label="Select section"
-                        value={PICKER_PLACEHOLDER_SECTION}
-                      />
-                      {sectionOptions.map((s) => (
-                        <Picker.Item
-                          key={s}
-                          label={formatBlockSectionDisplay(s)}
-                          value={s}
-                        />
-                      ))}
-                    </Picker>
-                  </View>
+                  <SelectField
+                    label="Section"
+                    placeholder="Select section"
+                    value={selectedSection}
+                    options={sectionSelectOptions}
+                    expanded={openSelect === "section"}
+                    onExpandedChange={(next) =>
+                      setOpenSelect(next ? "section" : null)
+                    }
+                    onChange={(v) => {
+                      setSelectedSection(v);
+                      setSelectedCourseCode(PICKER_PLACEHOLDER_CODE);
+                    }}
+                  />
 
-                  <Text className="mb-2 font-medium text-gray-700">
-                    Course code
-                  </Text>
-                  <View
-                    className={`mb-4 overflow-hidden rounded-lg border border-gray-300 bg-white ${
+                  <SelectField
+                    label="Course code"
+                    placeholder={
+                      selectedSection === PICKER_PLACEHOLDER_SECTION
+                        ? "Choose a section first"
+                        : "Select course code"
+                    }
+                    value={selectedCourseCode}
+                    options={courseSelectOptions}
+                    disabled={
                       selectedSection === PICKER_PLACEHOLDER_SECTION ||
                       courseCodeOptions.length === 0
-                        ? "opacity-50"
-                        : ""
-                    }`}
-                    pointerEvents={
-                      selectedSection !== PICKER_PLACEHOLDER_SECTION &&
-                      courseCodeOptions.length > 0
-                        ? "auto"
-                        : "none"
                     }
-                  >
-                    <Picker
-                      selectedValue={selectedCourseCode}
-                      onValueChange={(v) =>
-                        setSelectedCourseCode(String(v))
-                      }
-                    >
-                      <Picker.Item
-                        label={
-                          selectedSection === PICKER_PLACEHOLDER_SECTION
-                            ? "Choose a section first"
-                            : "Select course code"
-                        }
-                        value={PICKER_PLACEHOLDER_CODE}
-                      />
-                      {courseCodeOptions.map((code) => (
-                        <Picker.Item key={code} label={code} value={code} />
-                      ))}
-                    </Picker>
-                  </View>
+                    expanded={openSelect === "course"}
+                    onExpandedChange={(next) =>
+                      setOpenSelect(next ? "course" : null)
+                    }
+                    onChange={setSelectedCourseCode}
+                  />
 
                   {catalogMatch && (
                     <View className="mb-6">

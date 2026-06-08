@@ -209,7 +209,11 @@ export default function BlocksScreen() {
             <View className="bg-gray-100 rounded-lg p-6 items-center border border-gray-200">
               <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
               <Text className="text-gray-500 mt-4 text-center font-medium">
-                No records available
+                No schedules published yet
+              </Text>
+              <Text className="text-gray-400 mt-2 text-center text-sm px-4">
+                Schedules appear here after your admin uploads them from the web
+                system.
               </Text>
               <TouchableOpacity
                 onPress={loadAvailableBlocks}
@@ -266,7 +270,7 @@ export default function BlocksScreen() {
             <View className="bg-white rounded-lg p-6 items-center">
               <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
               <Text className="text-gray-500 mt-4 text-center">
-                No blocks with schedules available for this year level.
+                No blocks published for this year level yet.
               </Text>
             </View>
           )}

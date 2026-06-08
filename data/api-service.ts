@@ -1,5 +1,6 @@
 /**
- * Supabase REST: schedules, blocks, buildings, rooms.
+ * Supabase REST: published schedules (`schedules_mobile`), blocks, buildings, rooms.
+ * Web admin writes to `schedules`; data reaches mobile only after upload to `schedules_mobile`.
  * Prefer env-based `SUPABASE_URL` / `SUPABASE_ANON_KEY` in production.
  */
 import { roomCodeOrOriginal } from "@/utils/room-code";
@@ -9,6 +10,9 @@ import type { ScheduleTableRow } from "@/components/schedule-table";
 const SUPABASE_URL = "https://qapesjenuidodiqjkecd.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhcGVzamVudWlkb2RpcWprZWNkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUzOTczMTMsImV4cCI6MjA5MDk3MzMxM30.4QTle3oi0qMw3or3llv-R11VGLL-Bio3yfNuo30ZdPg";
+
+/** Published schedule snapshot — populated when web admin uploads to mobile. */
+const MOBILE_SCHEDULES_TABLE = "schedules_mobile";
 
 export interface BlockInfo {
   block: string;
@@ -396,10 +400,10 @@ export async function getBlocksWithSchedules(
 ): Promise<BlockInfo[]> {
   // Query schedules for this department and year level
   const deptUpper = department.toUpperCase();
-  const query = `department_id=eq.${deptUpper}&year_level=eq.${yearLevel}&is_active=eq.true&select=block`;
+  const query = `department_id=eq.${deptUpper}&year_level=eq.${yearLevel}&select=block`;
 
   const schedules = await supabaseFetch<{ block: string | null }>(
-    "schedules",
+    MOBILE_SCHEDULES_TABLE,
     query,
   );
 
@@ -433,9 +437,12 @@ export async function getBlockSchedule(
 ): Promise<BlockScheduleData | null> {
   const deptUpper = department.toUpperCase();
   const blockUpper = block.toUpperCase();
-  const query = `department_id=eq.${deptUpper}&year_level=eq.${yearLevel}&block=eq.${blockUpper}&is_active=eq.true&order=start_time`;
+  const query = `department_id=eq.${deptUpper}&year_level=eq.${yearLevel}&block=eq.${blockUpper}&order=start_time`;
 
-  const schedules = await supabaseFetch<SupabaseSchedule>("schedules", query);
+  const schedules = await supabaseFetch<SupabaseSchedule>(
+    MOBILE_SCHEDULES_TABLE,
+    query,
+  );
 
   if (schedules.length === 0) {
     return null;
@@ -456,12 +463,12 @@ export async function getBlocksOverview(): Promise<Record<
   string,
   Record<number, BlockInfo[]>
 > | null> {
-  const query = `is_active=eq.true&select=department_id,year_level,block`;
+  const query = `select=department_id,year_level,block`;
   const schedules = await supabaseFetch<{
     department_id: string | null;
     year_level: string | null;
     block: string | null;
-  }>("schedules", query);
+  }>(MOBILE_SCHEDULES_TABLE, query);
 
   const overview: Record<string, Record<number, BlockInfo[]>> = {};
 
@@ -498,8 +505,8 @@ export async function getBlocksOverview(): Promise<Record<
  */
 export async function getAllSchedules(): Promise<ScheduleClass[]> {
   const schedules = await supabaseFetch<SupabaseSchedule>(
-    "schedules",
-    "is_active=eq.true&order=start_time",
+    MOBILE_SCHEDULES_TABLE,
+    "order=start_time",
   );
   return schedules.map(transformSchedule);
 }
@@ -512,8 +519,8 @@ export async function getSchedulesByDepartment(
 ): Promise<ScheduleClass[]> {
   const deptUpper = department.toUpperCase();
   const schedules = await supabaseFetch<SupabaseSchedule>(
-    "schedules",
-    `department_id=eq.${deptUpper}&is_active=eq.true&order=start_time`,
+    MOBILE_SCHEDULES_TABLE,
+    `department_id=eq.${deptUpper}&order=start_time`,
   );
   return schedules.map(transformSchedule);
 }
